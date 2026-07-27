@@ -1,0 +1,321 @@
+/* Rock — page chrome.
+   The boulder itself is WebGL and styles nothing here; this is the HUD around
+   it. The palette is the rock's own: warm pale stone on near-black dirt, with
+   the state colours pulled off the same granite rather than added to it. */
+
+:root {
+  --ink: #e8dfd2;
+  --void: #0c0b0a;
+  --listening: #7fb2c9;  /* cold slate — it's paying attention */
+  --thinking: #c9a15f;   /* ochre, like weathered iron in the stone */
+  --speaking: #e8dfd2;   /* the rock's own colour */
+  --error: #d97757;
+  --stack: min(620px, 100%);
+  --gutter: 24px;
+  /* Set by ui/viewport.js when an on-screen keyboard covers the bottom. */
+  --keyboard-inset: 0px;
+  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--void);
+  overflow: hidden;
+  /* No pull-to-refresh or rubber-banding when a drag on the boulder overshoots. */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+three-d-stage:not(:defined) { visibility: hidden; }
+three-d-stage {
+  display: block;
+  width: 100%;
+  /* dvh, so mobile browser chrome collapsing doesn't crop the boulder. */
+  height: 100dvh;
+  /* The canvas is a drag surface for orbit controls, not a scroll surface. */
+  touch-action: none;
+}
+
+/* Shared by every small label: mono, uppercase, wide tracking. */
+.chip {
+  font: 600 11px/1 var(--mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+/* --- status ---------------------------------------------------------------
+   Top-left, out of the HUD's way at every width. */
+
+#status {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 20px);
+  left: calc(env(safe-area-inset-left) + var(--gutter));
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(232, 223, 210, .4);
+  transition: color .3s;
+  pointer-events: none;
+}
+#status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .9;
+}
+#status[data-state="listening"]  { color: var(--listening); }
+#status[data-state="thinking"]   { color: var(--thinking); }
+#status[data-state="speaking"]   { color: var(--speaking); }
+#status[data-state="connecting"] { color: rgba(232, 223, 210, .72); }
+
+/* A server-side tool working, under the status chip. Rock won't tell you he
+   looked something up, so this is the only sign of it. */
+#tool {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 44px);
+  left: calc(env(safe-area-inset-left) + var(--gutter));
+  z-index: 5;
+  color: var(--thinking);
+  opacity: 0;
+  transition: opacity .3s;
+  pointer-events: none;
+}
+#tool.visible { opacity: .75; }
+
+/* --- the bottom stack -----------------------------------------------------
+   Transcript, caption and composer in flow order. Nothing is positioned
+   against a hand-measured offset, so the composer can wrap to two rows and
+   everything above it moves up on its own. */
+
+#hud {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding:
+    0
+    calc(env(safe-area-inset-right) + var(--gutter))
+    calc(env(safe-area-inset-bottom) + var(--keyboard-inset) + 22px)
+    calc(env(safe-area-inset-left) + var(--gutter));
+  /* Only the controls take input — the rest of the strip stays draggable so
+     the boulder can still be spun behind it. */
+  pointer-events: none;
+}
+#hud > * { width: var(--stack); }
+
+/* What the person said, above the answer — smaller, dimmer, one line. */
+#you {
+  font: 400 13px/1.5 var(--sans);
+  color: rgba(232, 223, 210, .42);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 20px rgba(12, 11, 10, .95);
+  opacity: 0;
+  transition: opacity .4s;
+}
+#you.visible { opacity: 1; }
+
+/* Fades when spent; scrolls on its own if Rock runs long, which he won't. */
+#caption {
+  max-height: 34dvh;
+  overflow-y: auto;
+  font: 400 16px/1.65 var(--sans);
+  color: rgba(232, 223, 210, .92);
+  text-align: center;
+  text-wrap: pretty;
+  /* The transcript has its own line breaks; the default collapses them. */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  text-shadow: 0 1px 24px rgba(12, 11, 10, .95), 0 1px 4px rgba(12, 11, 10, .9);
+  opacity: 0;
+  transition: opacity .45s;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+#caption::-webkit-scrollbar { display: none; }
+#caption.visible { opacity: 1; pointer-events: auto; }
+#caption.error { color: var(--error); }
+
+#caption strong { font-weight: 620; }
+#caption em { font-style: italic; }
+#caption s { opacity: .6; }
+#caption code {
+  font: 500 .9em/1.5 var(--mono);
+  background: rgba(232, 223, 210, .1);
+  border-radius: 5px;
+  padding: .1em .34em;
+  white-space: pre;
+}
+
+/* --- composer ------------------------------------------------------------- */
+
+#composer {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px;
+  /* Squarer than the slime's pill — this one is cut from something. */
+  border-radius: 8px;
+  background: rgba(232, 223, 210, .05);
+  border: 1px solid rgba(232, 223, 210, .14);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color .25s, background .25s;
+}
+#composer:focus-within {
+  border-color: rgba(232, 223, 210, .32);
+  background: rgba(232, 223, 210, .08);
+}
+
+/* The UA default is a bright ring that has nothing to do with this palette.
+   Keyboard users still get an unmissable one; pointer users get nothing. */
+#composer :focus-visible {
+  outline: 2px solid rgba(232, 223, 210, .55);
+  outline-offset: 2px;
+}
+
+/* Wide enough for five controls in a row: the pickers join the flex line. */
+#options { display: contents; }
+#send { order: 1; }
+
+#prompt {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  /* 16px is the threshold below which iOS Safari zooms the page on focus. */
+  font: 400 16px/1.4 var(--sans);
+}
+#prompt::placeholder { color: rgba(232, 223, 210, .34); }
+#prompt:focus { outline: none; }
+#prompt:disabled { cursor: default; }
+
+/* The mic is the primary control — everything else is the fallback path. */
+#mic {
+  appearance: none;
+  cursor: pointer;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  background: rgba(232, 223, 210, .09);
+  border: 0;
+  color: rgba(232, 223, 210, .7);
+  transition: background .25s, color .25s, box-shadow .25s, transform .1s;
+}
+#mic:hover { background: rgba(232, 223, 210, .16); color: var(--ink); }
+#mic:active { transform: scale(.94); }
+#mic[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--void);
+  box-shadow: 0 0 0 4px rgba(232, 223, 210, .12);
+}
+#mic[data-busy], #mic:disabled { opacity: .5; cursor: default; }
+#mic svg { display: block; }
+
+#send {
+  appearance: none;
+  cursor: pointer;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  border: 0;
+  color: var(--void);
+  transition: opacity .2s, transform .1s;
+}
+#send:hover { opacity: .85; }
+#send:active { transform: scale(.94); }
+#send:disabled { opacity: .3; cursor: default; }
+#send svg { display: block; }
+
+#model, #voice {
+  appearance: none;
+  cursor: pointer;
+  flex: none;
+  max-width: 176px;
+  padding: 9px 26px 9px 12px;
+  border-radius: 4px;
+  background: rgba(232, 223, 210, .05) no-repeat right 11px center;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M0 0h8L4 5z' fill='rgba(232,223,210,.45)'/%3E%3C/svg%3E");
+  border: 1px solid rgba(232, 223, 210, .14);
+  color: rgba(232, 223, 210, .62);
+  text-overflow: ellipsis;
+  transition: color .2s, border-color .2s;
+}
+#model:hover, #voice:hover { color: rgba(232, 223, 210, .9); border-color: rgba(232, 223, 210, .28); }
+#model:focus, #voice:focus { outline: none; border-color: rgba(232, 223, 210, .4); }
+#model option, #voice option { background: #14110f; color: var(--ink); }
+/* Voice names are one short word — it never needs the model's width. */
+#voice { max-width: 96px; }
+
+/* What this build can reach, under the composer. Quiet: it is a fact about the
+   deployment, not something to read every session. */
+#tools {
+  text-align: center;
+  color: rgba(232, 223, 210, .26);
+  opacity: 0;
+  transition: opacity .4s;
+  pointer-events: none;
+}
+#tools.visible { opacity: 1; }
+
+/* --- narrow -------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  :root { --gutter: 14px; }
+
+  #status { top: calc(env(safe-area-inset-top) + 14px); }
+  #tool { top: calc(env(safe-area-inset-top) + 38px); }
+
+  /* Five controls don't fit across a phone. The pickers drop to their own row
+     and split it; mic, field and send keep the first. */
+  #composer { flex-wrap: wrap; }
+  #options {
+    display: flex;
+    order: 2;
+    flex: 1 0 100%;
+    gap: 8px;
+  }
+  #model, #voice {
+    flex: 1 1 0;
+    max-width: none;
+    min-width: 0;
+    padding: 11px 24px 11px 12px;
+  }
+
+  #caption { font-size: 15px; max-height: 28dvh; }
+}
+
+/* Fingers, not cursors — hit targets go up and the hovers stop mattering. */
+@media (pointer: coarse) {
+  #mic, #send { width: 44px; height: 44px; }
+  #mic:hover { background: rgba(232, 223, 210, .09); color: rgba(232, 223, 210, .7); }
+  #mic[aria-pressed="true"]:hover { background: var(--ink); color: var(--void); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #you, #caption, #status, #tool, #tools, #composer, #mic, #send, #model, #voice {
+    transition-duration: .01ms;
+  }
+}

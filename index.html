@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover so env(safe-area-inset-*) reports real numbers on
+     notched phones; resizes-content keeps the HUD above the on-screen keyboard
+     on Chrome, and src/client/ui/viewport.js covers the browsers that ignore it. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0c0b0a">
+<meta name="description" content="A voice agent rendered as a boulder — several tons of granite with opinions, driven by an xAI Grok speech-to-speech session.">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Rock — a boulder that talks back</title>
+</head>
+<body>
+<three-d-stage name="boulder" background="#0c0b0a"></three-d-stage>
+
+<div id="status" class="chip" data-state="idle">idle</div>
+<div id="tool" class="chip"></div>
+
+<!-- One bottom stack. Everything in it is laid out by flow rather than pinned
+     to hand-tuned offsets, so the composer can grow a second row on a narrow
+     screen without the caption having to know. -->
+<div id="hud">
+  <div id="you"></div>
+  <div id="caption" aria-live="polite"></div>
+
+  <form id="composer">
+    <button id="mic" type="button" aria-pressed="false" aria-label="Start talking">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+        <rect x="5.4" y="1.4" width="4.2" height="7.6" rx="2.1" stroke="currentColor" stroke-width="1.4"/>
+        <path d="M3 7.2a4.5 4.5 0 0 0 9 0M7.5 11.7v2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+    </button>
+
+    <input id="prompt" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="send"
+           disabled placeholder="Tap the mic. Make it quick." aria-label="Message">
+
+    <button id="send" type="submit" aria-label="Send">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+        <path d="M7.5 12.5V2.5M7.5 2.5L3 7M7.5 2.5L12 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+
+    <!-- `display: contents` on wide screens, its own row when there isn't width
+         for five controls side by side. -->
+    <div id="options">
+      <select id="model" class="chip" aria-label="Model"><option>loading…</option></select>
+      <select id="voice" class="chip" aria-label="Voice"><option>voice</option></select>
+    </div>
+  </form>
+
+  <div id="tools" class="chip"></div>
+</div>
+
+<script type="module" src="/src/client/main.js"></script>
+</body>
+</html>
