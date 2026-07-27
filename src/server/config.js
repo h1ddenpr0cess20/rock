@@ -9,12 +9,22 @@
 
 import { readFileSync } from 'node:fs';
 
-/* There is no voices endpoint to ask, so this is the published set. `rex` leads
-   because it is the one that sounds like it could hold a grudge; `sal` is the
-   other heavy one. `ara` and `eve` are lighter than a boulder has any business
-   being, but they're there. An unrecognised XAI_VOICE is still honoured and
-   shows up in the picker — this list goes stale, the API doesn't. */
-export const KNOWN_VOICES = Object.freeze(['rex', 'sal', 'leo', 'ara', 'eve']);
+/* xAI publishes 26 voices — the original five plus 21 flagship ones. This is not
+   all of them. It is the subset that can plausibly be several tons of granite:
+   heavy, low, commanding. The light and airy end of the roster (`ara`, `eve`,
+   `carina`, `luna`, `iris`, `celeste`, `lumen`, `lux`, `cosmo`, `sirius`,
+   `altair`, `helios`) is deliberately absent — a boulder does not sound
+   upbeat. `rex` leads because it is the one that sounds like it could hold a
+   grudge.
+
+   xAI does have a voices endpoint now (`GET /v1/tts/voices`), but it returns
+   the whole roster, which is the thing we are curating away from. An
+   unrecognised XAI_VOICE is still honoured and shows up in the picker, so
+   anything omitted here is a default we don't pick, not a voice we block. */
+export const KNOWN_VOICES = Object.freeze([
+  'rex', 'sal', 'atlas', 'zagan', 'orion', 'perseus', 'leo',
+  'helix', 'zenith', 'rigel', 'castor', 'ursa', 'naksh', 'kepler',
+]);
 
 /* grok-voice-latest tracks the newest release. There is no models endpoint that
    reports voice-capable models, so the picker is a static list too. */

@@ -37,7 +37,7 @@ though that phone won't get past the mic prompt.
 | Variable | Default | Role |
 |---|---|---|
 | `XAI_API_KEY` | — | Required. Stays in the Node process. |
-| `XAI_VOICE` | `rex` | `rex`, `sal`, `leo`, `ara`, `eve`, or a custom voice id |
+| `XAI_VOICE` | `rex` | The heavy end of xAI's roster — `rex`, `sal`, `atlas`, `zagan`, `orion`, `perseus`, `leo`, `helix`, `zenith`, `rigel`, `castor`, `ursa`, `naksh`, `kepler` — or any other voice id, which is honoured and added to the picker |
 | `XAI_MODEL` | `grok-voice-latest` | Also `grok-voice-think-fast-1.0` |
 | `XAI_REALTIME_URL` | xAI | Points the proxy at a gateway or a stub |
 | `XAI_WEB_SEARCH` | `true` | |
