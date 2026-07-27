@@ -6,6 +6,7 @@
  */
 
 import { createServer } from 'node:http';
+import { createServer as createSecureServer } from 'node:https';
 import { fileURLToPath } from 'node:url';
 
 import { createApiMiddleware } from './api.js';
@@ -39,8 +40,12 @@ export function chain(...middleware) {
   };
 }
 
-export function createApp(config = loadConfig(), { root = DIST } = {}) {
-  const server = createServer(chain(createApiMiddleware(config), createStaticMiddleware(root)));
+/** `tls` is a { key, cert } pair — see src/server/tls.js. Without one the
+ *  server is HTTP, which is all `localhost` ever needs. The page derives its
+ *  socket scheme from the page's own, so wss: follows from https: for free. */
+export function createApp(config = loadConfig(), { root = DIST, tls = null } = {}) {
+  const handle = chain(createApiMiddleware(config), createStaticMiddleware(root));
+  const server = tls ? createSecureServer(tls, handle) : createServer(handle);
   const realtime = createRealtimeProxy(config);
 
   server.on('upgrade', (req, socket, head) => {

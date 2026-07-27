@@ -1,9 +1,11 @@
+import basicSsl from '@vitejs/plugin-basic-ssl';
 import { defineConfig, loadEnv } from 'vite';
 
 import { createApiMiddleware } from './src/server/api.js';
 import { loadConfig } from './src/server/config.js';
 import { REALTIME_PATH } from './src/server/app.js';
 import { createRealtimeProxy } from './src/server/realtime.js';
+import { CERT_DIR } from './src/server/tls.js';
 
 /**
  * The dev server runs the real proxy.
@@ -40,13 +42,22 @@ export default defineConfig(({ mode }) => {
   // read here and never exposed to client code as import.meta.env.
   const env = loadEnv(mode, process.cwd(), '');
 
+  // `npm run dev:lan`, for talking to Rock from a phone on the same wifi.
+  //
+  // getUserMedia is only exposed on a secure origin, and a LAN address over
+  // plain HTTP is not one — the mic isn't refused there, the whole
+  // navigator.mediaDevices namespace is missing. So the LAN dev server serves
+  // HTTPS with a self-signed certificate, which no browser trusts: the phone
+  // shows a warning, and tapping through it once per device is the price of a
+  // secure context without a real certificate. The mic works after that, and
+  // the page's socket follows the page onto wss: by itself.
+  const lan = mode === 'lan';
+
   return {
-    plugins: [rockApi(env)],
+    plugins: [rockApi(env), ...(lan ? [basicSsl({ certDir: CERT_DIR })] : [])],
     server: {
       port: Number(env.PORT) || 5173,
-      // Phones on the same wifi. Note that getUserMedia needs a secure context,
-      // so a LAN address over plain HTTP still won't get past the mic prompt —
-      // `npm run dev -- --host` is for layout work, not for talking to it.
+      // Phones on the same wifi. Without `dev:lan` this is layout work only.
       host: true,
     },
     resolve: {
