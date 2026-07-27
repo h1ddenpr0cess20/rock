@@ -29,6 +29,13 @@ function spring(s, k, c, dt, to = 0) {
 
 const STEP = Math.PI / 3; // it clunks facet to facet, not smoothly
 const RADIUS = 0.95;
+const HALF = 1.1; // widest the body gets, squash included
+
+/* How far it will pace either side of centre. Not a fixed distance — a phone
+   held upright has a fraction of the width a laptop does, so the walk is
+   measured out of whatever is actually on screen. */
+const TRAVEL_MIN = 0.85;
+const TRAVEL_MAX = 1.45;
 
 export function createBoulder({ stage, THREE }) {
   buildEnvironment({ stage, THREE });
@@ -80,11 +87,22 @@ export function createBoulder({ stage, THREE }) {
      fixed 0.3s curve, which reads as a metronome — the shape of the step is
      what makes it look like a decision rather than a mechanism. */
   let stepAng = STEP, stepDur = 0.3, stepEase = 2.1, stepLift = 0.075, run = 2;
+  let travel = TRAVEL_MAX;
 
   const beginStep = () => {
     // Facets aren't all the same width, so neither are the tips over them.
     const wide = 0.72 + Math.random() * 0.62;
-    stepAng = STEP * wide;
+    let reach = STEP * wide * RADIUS;
+
+    /* Never start a step that would finish off screen. Turn around if there
+       isn't room ahead, and on a narrow screen — where a full tip is wider
+       than the whole walk — take a shorter one. Distance is derived back into
+       the rotation, so it still rolls rather than slides. */
+    let room = travel - dir * x;
+    if (reach > room) { dir = -dir; room = travel - dir * x; }
+    if (reach > room) reach = room;
+    stepAng = reach / RADIUS;
+
     // A wider tip is a longer fall; the curve it falls on varies too, so some
     // steps hang on the edge and others go straight over.
     stepDur = (0.2 + Math.random() * 0.1) * (0.65 + wide * 0.5);
@@ -146,14 +164,13 @@ export function createBoulder({ stage, THREE }) {
           // Landing force follows the drop: a wide tip hits harder.
           land(3.2 + (stepAng / STEP) * 1.5 + Math.random() * 0.8);
           const paced = m.roll >= 1;
-          const wall = Math.abs(x) > 1.45;
-          if (++steps >= run || wall) {
+          if (++steps >= run) {
             steps = 0;
             run = 1 + Math.floor(Math.random() * (paced ? 5 : 3));
             rest = (paced ? 0.3 : 1.1) + Math.random() * (paced ? 0.75 : 1.4);
             // Turning around is the usual thing to do after a run, but not the
-            // only one — out in the middle it sometimes just carries on.
-            if (wall || Math.random() < 0.72) dir *= -1;
+            // only one — sometimes it just carries on the way it was going.
+            if (Math.random() < 0.72) dir *= -1;
           }
         }
       }
@@ -240,6 +257,40 @@ export function createBoulder({ stage, THREE }) {
   };
 
   stage.setObject(boulder);
+
+  /* --- framing --------------------------------------------------------------
+     setObject() frames an object once, against the camera's *vertical* field of
+     view. A phone held upright is much narrower than it is tall, so that
+     framing crops the rock at the sides and leaves it nowhere to walk. Reframe
+     against the horizontal extent instead — the body plus the width of its
+     walk — and re-run it whenever the viewport changes, so a rotation or the
+     keyboard opening reframes rather than clips. Orbiting is preserved: only
+     the distance along the current view direction is set. */
+  const frame = () => {
+    const camera = stage._camera;
+    const w = stage.clientWidth || 1;
+    const h = stage.clientHeight || 1;
+    const aspect = w / h;
+
+    travel = Math.min(TRAVEL_MAX, Math.max(TRAVEL_MIN, TRAVEL_MIN + (aspect - 0.5) * 1.2));
+
+    const halfW = HALF + travel + 0.1;
+    const halfH = HALF + 0.5; // headroom: a stomp leaves the ground
+    const dist = Math.max(halfH, halfW / aspect) / Math.tan((camera.fov * Math.PI) / 360);
+
+    const target = stage._controls.target;
+    const dir3 = camera.position.clone().sub(target);
+    if (dir3.lengthSq() === 0) dir3.set(1, 0.55, 1.25);
+    camera.position.copy(target).addScaledVector(dir3.normalize(), dist);
+    camera.near = Math.max(dist / 100, 0.01);
+    camera.far = dist * 100;
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
+    stage._controls.update();
+  };
+
+  frame();
+  new ResizeObserver(frame).observe(stage);
 
   // setObject() turns shadows on for everything it traverses. There is no
   // ground here — the boulder hangs in the void — so nothing has anything to
