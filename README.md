@@ -22,17 +22,36 @@ over him and he'll stop — and stomp.
 | Script | |
 |---|---|
 | `npm run dev` | Vite, with the proxy mounted as middleware — one process |
+| `npm run dev:lan` | The same, over HTTPS on the network — for a phone |
 | `npm run build` | Bundles the client to `dist/` |
 | `npm start` | Serves `dist/` with the same proxy in front |
 | `npm run preview` | `build` then `start` |
+| `npm run preview:lan` | `build` then `start`, over HTTPS on the network |
 | `npm test` | `node:test`, against a stub xAI socket |
 | `npm run lint` | |
 
-Open it on `localhost`. Microphone access needs a secure context, so serving
-this from a LAN address over plain HTTP will fail at the mic prompt — put it
-behind HTTPS if you want it off your own machine. `npm run dev -- --host` binds
-to the network anyway, which is useful for checking layout on a phone even
-though that phone won't get past the mic prompt.
+### On a phone
+
+```sh
+npm run dev:lan           # → https://192.168.x.x:5173, printed on start
+```
+
+Microphone access needs a secure context. `localhost` is one; a LAN address
+over plain HTTP is not — `navigator.mediaDevices` isn't just refused there, it
+doesn't exist, so the page can't even raise the mic prompt. The `:lan` scripts
+serve HTTPS with a self-signed certificate, which is a secure context. The
+realtime socket follows the page onto `wss:` by itself.
+
+No browser trusts that certificate, so the phone shows a warning the first time
+("Advanced" → proceed on Chrome, "Show details" → "visit this website" on
+Safari). Tap through it once per device and the mic works from then on. The
+certificate is generated on first use and cached in `node_modules/.vite/`, and
+both `:lan` scripts share it, so one warning covers both.
+
+To skip the warning entirely, bring a certificate the device already trusts —
+[mkcert](https://github.com/FiloSottile/mkcert) issues one for a LAN IP in a
+line — and point `SSL_KEY` and `SSL_CERT` at it. `npm start` then serves HTTPS
+with it and the `--https` flag is unnecessary. Same for anything public-facing.
 
 | Variable | Default | Role |
 |---|---|---|
@@ -44,6 +63,7 @@ though that phone won't get past the mic prompt.
 | `XAI_X_SEARCH` | `true` | |
 | `XAI_MCP_SERVERS` | — | JSON array of remote MCP servers, or put it in `mcp.json` |
 | `PORT` | `5173` | |
+| `SSL_KEY`, `SSL_CERT` | — | Paths to a real certificate; `npm start` then serves HTTPS |
 
 Both `npm run dev` and `npm start` read `.env`.
 
