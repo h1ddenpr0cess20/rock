@@ -75,6 +75,24 @@ export function createBoulder({ stage, THREE }) {
   let ang = 0, x = 0, dir = 1, stepT = -1, angFrom = 0, xFrom = 0, steps = 0, rest = 0, wind = 0;
   let evtT = 2.2, stompT = 0.2;
 
+  /* Per-step, rerolled every time it tips: how far over it goes, how long that
+     takes, and how it gets there. Rolling used to be one fixed 60° tip on a
+     fixed 0.3s curve, which reads as a metronome — the shape of the step is
+     what makes it look like a decision rather than a mechanism. */
+  let stepAng = STEP, stepDur = 0.3, stepEase = 2.1, stepLift = 0.075, run = 2;
+
+  const beginStep = () => {
+    // Facets aren't all the same width, so neither are the tips over them.
+    const wide = 0.72 + Math.random() * 0.62;
+    stepAng = STEP * wide;
+    // A wider tip is a longer fall; the curve it falls on varies too, so some
+    // steps hang on the edge and others go straight over.
+    stepDur = (0.2 + Math.random() * 0.1) * (0.65 + wide * 0.5);
+    stepEase = 1.7 + Math.random() * 0.9;
+    stepLift = 0.05 * wide + Math.random() * 0.035;
+    angFrom = ang; xFrom = x; stepT = 0; wind = 0;
+  };
+
   /** A landing shoves the whole thing: squash down, and skew a little at random
    *  so no two landings look alike. */
   const land = (force) => {
@@ -114,24 +132,28 @@ export function createBoulder({ stage, THREE }) {
     if (rolling) {
       if (stepT < 0) {
         if (rest > 0) { rest -= dt; wind = Math.min(1, wind + dt * 4); }
-        else { stepT = 0; angFrom = ang; xFrom = x; wind = 0; }
+        else beginStep();
       }
       if (stepT >= 0) {
-        const dur = 0.30;
         stepT += dt;
-        const u = Math.min(1, stepT / dur);
-        const e = Math.pow(u, 2.1); // slow to tip, quick to drop
-        ang = angFrom + dir * STEP * e;
-        x = xFrom + dir * STEP * RADIUS * e;
-        lift = Math.sin(Math.PI * u) * 0.075; // rides up over the edge
+        const u = Math.min(1, stepT / stepDur);
+        const e = Math.pow(u, stepEase); // slow to tip, quick to drop
+        ang = angFrom + dir * stepAng * e;
+        x = xFrom + dir * stepAng * RADIUS * e;
+        lift = Math.sin(Math.PI * u) * stepLift; // rides up over the edge
         if (u >= 1) {
           stepT = -1;
-          land(4.2);
-          const runLength = m.roll >= 1 ? 4 : 2;
-          if (++steps >= runLength || Math.abs(x) > 1.45) {
+          // Landing force follows the drop: a wide tip hits harder.
+          land(3.2 + (stepAng / STEP) * 1.5 + Math.random() * 0.8);
+          const paced = m.roll >= 1;
+          const wall = Math.abs(x) > 1.45;
+          if (++steps >= run || wall) {
             steps = 0;
-            rest = (m.roll >= 1 ? 0.45 : 1.4) + Math.random() * 0.6;
-            dir *= -1; // pace back the other way
+            run = 1 + Math.floor(Math.random() * (paced ? 5 : 3));
+            rest = (paced ? 0.3 : 1.1) + Math.random() * (paced ? 0.75 : 1.4);
+            // Turning around is the usual thing to do after a run, but not the
+            // only one — out in the middle it sometimes just carries on.
+            if (wall || Math.random() < 0.72) dir *= -1;
           }
         }
       }
