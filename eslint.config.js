@@ -5,17 +5,7 @@ import globals from 'globals';
    explanatory blocks — is deliberate and not something a linter should have
    an opinion about. */
 export default [
-  {
-    ignores: [
-      'dist/',
-      'node_modules/',
-      // The standalone prototypes this project grew out of. Kept as they were
-      // — boulder-buddy.html is the reference the avatar was ported from — and
-      // not held to the app's config.
-      'three-d-stage.js',
-      '*.html',
-    ],
-  },
+  { ignores: ['dist/', 'node_modules/'] },
 
   js.configs.recommended,
 

@@ -180,9 +180,11 @@ src/
 test/                   node:test, against a stub xAI socket
 ```
 
-`boulder-buddy.html`, `slime-orb.html` and the root `three-d-stage.js` are the
-standalone prototypes this grew out of, left as they were.
-`src/client/boulder/` is the boulder ported out of the first of them.
+`src/client/boulder/` is a single-file prototype (`boulder-buddy.html`) split
+into modules; the original is in the first commit if you want to see where it
+started. `src/client/vendor/three-d-stage.js` is a copied starter component
+with two local changes, listed at the top of the file — re-copying it drops
+them.
 
 ## States
 
