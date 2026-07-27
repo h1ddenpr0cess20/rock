@@ -17,38 +17,13 @@ import { AUDIO_RATE } from './constants.js';
    inlines anything under the asset limit as a `data:text/javascript` URL, and
    `addModule()` rejects those on Safari and under any CSP that doesn't allow
    `data:`. public/ is copied verbatim, so the path is the same in both. */
-const WORKLET_URL = `${import.meta.env.BASE_URL}pcm-worklet.js`;
+const WORKLET_URL = `${import.meta.env?.BASE_URL ?? '/'}pcm-worklet.js`;
 
 /* How far ahead of `currentTime` the first chunk of a turn is scheduled. Enough
    that a slow frame doesn't underrun into a click, small enough to stay off the
    perceptible end of a reply. Every later chunk butts against the one before,
    so this is the only latency the queue adds. */
 const LEAD = 0.08;
-
-/** PCM16 → the base64 `input_audio_buffer.append` wants. */
-export function encodePCM(samples) {
-  const bytes = new Uint8Array(samples.buffer, samples.byteOffset, samples.byteLength);
-  let binary = '';
-  // In chunks: apply() with a few hundred thousand arguments overflows the stack.
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-  }
-  return btoa(binary);
-}
-
-/** base64 → PCM16. Returns null for a frame that isn't whole samples. */
-export function decodePCM(base64) {
-  let binary;
-  try {
-    binary = atob(base64);
-  } catch {
-    return null;
-  }
-  if (binary.length % 2) return null; // not PCM16, so not ours to play
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new Int16Array(bytes.buffer);
-}
 
 /**
  * Rock's voice: a queue of chunks scheduled back to back on one timeline.

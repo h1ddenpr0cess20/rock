@@ -12,7 +12,7 @@
  * whether a response is in flight, and the transcript accumulating for the turn.
  */
 
-import { decodePCM } from './audio.js';
+import { decodePCM } from './codec.js';
 
 /* Server-side tools (web_search, x_search, mcp) run inside xAI, and their
    event names aren't in the docs. Rather than guess at exact strings, anything

@@ -21,7 +21,8 @@
  * page's wiring block and the boulder do not change.
  */
 
-import { createAudio, createCapture, createPlayer, encodePCM } from './audio.js';
+import { createAudio, createCapture, createPlayer } from './audio.js';
+import { encodePCM } from './codec.js';
 import { createEmitter } from './emitter.js';
 import { createEventHandler } from './events.js';
 import { amplitude, createAnalyser, follow } from './metering.js';
