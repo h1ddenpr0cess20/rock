@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Boulder — AI assistant avatar</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+    "three/addons/controls/OrbitControls.js": "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js",
+    "three/addons/exporters/OBJExporter.js": "https://unpkg.com/three@0.184.0/examples/jsm/exporters/OBJExporter.js",
+    "three/addons/exporters/GLTFExporter.js": "https://unpkg.com/three@0.184.0/examples/jsm/exporters/GLTFExporter.js"
+  },
+  "integrity": {
+    "https://unpkg.com/three@0.184.0/build/three.module.js": "sha384-8FCZ1eVO6it4+pbec2aDtnTrwjWXZLJRC+MAGCIPDgsYnUrl/E0A2YlF8ioMKI/J",
+    "https://unpkg.com/three@0.184.0/build/three.core.js": "sha384-dw2ooPewaEIrAgl6oFDBmmBWCE9oW9LxRGcfwZ0hLvEprzo202wXl7vCYHRlSnOT",
+    "https://unpkg.com/three@0.184.0/examples/jsm/controls/OrbitControls.js": "sha384-4rziNxOBZKQ69i+w+f89KJ55TCYquwchVbByQwmaOeIOXdOU2PLDn3kOfXHwIJC9",
+    "https://unpkg.com/three@0.184.0/examples/jsm/exporters/OBJExporter.js": "sha384-nbwtoZENJD3Vq+ACK0CuGQdPMuDWHkamC2KJD70EV5nfg6jQjfppKOea07YJN+N3",
+    "https://unpkg.com/three@0.184.0/examples/jsm/exporters/GLTFExporter.js": "sha384-VofkvpG6HERhFCYbsUOHeNXBCqID2nfqkQqnVzE1jc/oPcz+qJ13ADdXH08hE+cQ"
+  }
+}
+</script>
+<style>
+  html, body { margin: 0; height: 100%; background: #0c0b0a; }
+  three-d-stage:not(:defined) { visibility: hidden; }
+  three-d-stage { display: block; width: 100vw; height: 100vh; }
+  #state {
+    position: fixed; left: 24px; bottom: 22px; z-index: 5;
+    display: flex; gap: 8px; font: 600 11px/1 ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  #state button {
+    appearance: none; cursor: pointer; padding: 9px 14px; border-radius: 4px;
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.14);
+    color: rgba(255,255,255,.55); font: inherit; transition: color .18s, background .18s, border-color .18s;
+  }
+  #state button:hover { color: rgba(255,255,255,.9); background: rgba(255,255,255,.1); }
+  #state button[aria-pressed="true"] { color: #14110f; background: #e8dfd2; border-color: #e8dfd2; }
+  #grumble {
+    position: fixed; right: 26px; bottom: 24px; z-index: 5; max-width: 300px; text-align: right;
+    font: 500 13px/1.45 ui-monospace, "SF Mono", Menlo, monospace; color: rgba(232,223,210,.42);
+  }
+</style>
+</head>
+<body>
+<three-d-stage name="boulder" background="#0c0b0a"></three-d-stage>
+<div id="state">
+  <button data-mode="idle" aria-pressed="true">idle</button>
+  <button data-mode="listening" aria-pressed="false">listening</button>
+  <button data-mode="thinking" aria-pressed="false">thinking</button>
+  <button data-mode="angry" aria-pressed="false">angry</button>
+  <button data-mode="talking" aria-pressed="false">talking</button>
+</div>
+<div id="grumble">what.</div>
+<script src="./three-d-stage.js"></script>
+<script type="module">
+const stage = document.querySelector('three-d-stage');
+const { THREE } = await stage.ready;
+
+/* --- rocky studio env: warm key from above, cool bounce from below --- */
+try {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 32;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 32);
+  g.addColorStop(0, '#cdd6e6'); g.addColorStop(0.45, '#7c8493');
+  g.addColorStop(0.52, '#3a342e'); g.addColorStop(1, '#100e0c');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 32);
+  ctx.fillStyle = 'rgba(255,240,214,0.95)';
+  ctx.beginPath(); ctx.ellipse(18, 7, 10, 5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(150,180,220,0.55)';
+  ctx.beginPath(); ctx.ellipse(48, 13, 7, 4, 0, 0, Math.PI * 2); ctx.fill();
+  const tex = new THREE.Texture(c);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  const pmrem = new THREE.PMREMGenerator(stage._renderer);
+  stage._scene.environment = pmrem.fromEquirectangular(tex).texture;
+  pmrem.dispose(); tex.dispose();
+} catch (e) { /* nicety */ }
+
+const boulder = new THREE.Group();
+boulder.name = 'boulder_character';
+
+/* body pivots for rolling; face rides on top and stays facing forward */
+const body = new THREE.Group(); body.name = 'body';
+boulder.add(body);
+
+/* ---------- craggy rock geometry: noise + chipped flat facets ---------- */
+const hash = (x, y, z) => {
+  const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+  return s - Math.floor(s);
+};
+const noise = (x, y, z) => {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+  const xf = x - xi, yf = y - yi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v2 = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+  const L = (a, b, t) => a + (b - a) * t;
+  return L(
+    L(L(hash(xi, yi, zi), hash(xi + 1, yi, zi), u), L(hash(xi, yi + 1, zi), hash(xi + 1, yi + 1, zi), u), v2),
+    L(L(hash(xi, yi, zi + 1), hash(xi + 1, yi, zi + 1), u), L(hash(xi, yi + 1, zi + 1), hash(xi + 1, yi + 1, zi + 1), u), v2),
+    w) * 2 - 1;
+};
+
+/* cutting planes chip flat faces off the mass — what makes it read as rock */
+const PLANES = [];
+for (let i = 0; i < 13; i++) {
+  const a = i * 2.399963, y = 1 - 2 * (i + 0.5) / 13, r = Math.sqrt(Math.max(0, 1 - y * y));
+  PLANES.push({
+    n: new THREE.Vector3(Math.cos(a) * r, y * 0.75, Math.sin(a) * r).normalize(),
+    d: 0.74 + hash(i, i * 3, 7) * 0.2,
+  });
+}
+
+const rockGeo = new THREE.IcosahedronGeometry(1, 6).toNonIndexed();
+{
+  const p = rockGeo.attributes.position.array;
+  const v = new THREE.Vector3();
+  const colors = new Float32Array(p.length);
+  const base = new THREE.Color('#8a8278'), dark = new THREE.Color('#453f39'), pale = new THREE.Color('#b8b0a2');
+  const tc = new THREE.Color();
+  for (let i = 0; i < p.length; i += 3) {
+    v.set(p[i], p[i + 1], p[i + 2]).normalize();
+    let d = 1
+      + noise(v.x * 2.1 + 11, v.y * 2.1, v.z * 2.1) * 0.19
+      + noise(v.x * 4.7, v.y * 4.7 + 5, v.z * 4.7) * 0.085
+      + noise(v.x * 11, v.y * 11, v.z * 11 + 3) * 0.03;
+    v.multiplyScalar(d);
+    for (const pl of PLANES) {
+      const t = v.dot(pl.n);
+      if (t > pl.d) v.addScaledVector(pl.n, -(t - pl.d) * 0.92);
+    }
+    if (v.y < -0.87) v.y = -0.87 + (v.y + 0.87) * 0.18; /* squat, sat-down base */
+    p[i] = v.x; p[i + 1] = v.y * 0.94; p[i + 2] = v.z;
+
+    /* mineral mottling + grime in the crevices */
+    const m = noise(v.x * 6, v.y * 6, v.z * 6) * 0.5 + 0.5;
+    const grit = hash(Math.round(v.x * 90), Math.round(v.y * 90), Math.round(v.z * 90));
+    tc.copy(base).lerp(dark, Math.pow(m, 1.6) * 0.75).lerp(pale, grit > 0.93 ? 0.6 : 0);
+    colors[i] = tc.r; colors[i + 1] = tc.g; colors[i + 2] = tc.b;
+  }
+  rockGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  rockGeo.computeVertexNormals();
+}
+
+const rockMat = new THREE.MeshStandardMaterial({
+  name: 'granite',
+  vertexColors: true,
+  roughness: 0.92,
+  metalness: 0.06,
+  flatShading: true,
+});
+const rock = new THREE.Mesh(rockGeo, rockMat);
+rock.name = 'rock_body';
+rock.castShadow = true; rock.receiveShadow = true;
+body.add(rock);
+
+/* ---------- moods ---------- */
+const MOODS = {
+  idle:      { jitter: 0.10, lean: 0.0,   rock: 0.055, rockSpeed: 1.05, roll: 0 },
+  listening: { jitter: 0.04, lean: -0.14, rock: 0.115, rockSpeed: 1.6,  roll: 0 },
+  thinking:  { jitter: 0.15, lean: 0.10,  rock: 0.02,  rockSpeed: 1.0,  roll: 1 },
+  angry:     { jitter: 1.00, lean: 0.20,  rock: 0.05,  rockSpeed: 2.6,  roll: 0 },
+  talking:   { jitter: 0.20, lean: 0.05,  rock: 0.04,  rockSpeed: 1.5,  roll: 0.45 },
+};
+const LINES = {
+  idle: 'what.',
+  listening: 'talk faster.',
+  thinking: 'hrm. thinking.',
+  angry: 'i will flatten you.',
+  talking: 'listen. carefully.',
+};
+let target = MOODS.idle, m = { ...MOODS.idle };
+const grumble = document.getElementById('grumble');
+document.querySelectorAll('#state button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#state button').forEach(b =>
+      b.setAttribute('aria-pressed', String(b === btn)));
+    target = MOODS[btn.dataset.mode];
+    grumble.textContent = LINES[btn.dataset.mode];
+  });
+});
+
+const clock = new THREE.Clock();
+let t = 0;
+
+/* --- springs: everything the rock does is a physical reaction, not a sine --- */
+const sq = { p: 0, v: 0 };   /* squash / stretch */
+const tz = { p: 0, v: 0 };   /* side tilt */
+const tx = { p: 0, v: 0 };   /* fore/aft tilt */
+const ty = { p: 0, v: 0 };   /* grinding twist */
+const spring = (s, k, c, dt, to = 0) => {
+  s.v += (to - s.p) * k * dt - s.v * c * dt;
+  s.p += s.v * dt;
+};
+
+let y = 0, yV = 0, airborne = false;
+let ang = 0, x = 0, dir = 1, stepT = -1, angFrom = 0, xFrom = 0, steps = 0, rest = 0, wind = 0;
+let evtT = 2.2, sylT = 0, stompT = 0.2;
+const STEP = Math.PI / 3, RAD = 0.95;   /* it clunks facet to facet, not smoothly */
+
+const land = (force) => {
+  sq.v += force;
+  tz.v += (Math.random() - 0.5) * force * 0.8;
+  tx.v += (Math.random() - 0.5) * force * 0.5;
+};
+
+rock.onBeforeRender = () => {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  t += dt;
+  for (const k in m) m[k] += (target[k] - m[k]) * Math.min(1, dt * 3.4);
+  const rolling = target.roll > 0;
+  const angry = target === MOODS.angry;
+
+  /* ---- rolling: tip over a corner, fall onto the next facet, repeat ---- */
+  let lift = 0;
+  if (rolling) {
+    if (stepT < 0) {
+      if (rest > 0) { rest -= dt; wind = Math.min(1, wind + dt * 4); }
+      else { stepT = 0; angFrom = ang; xFrom = x; wind = 0; }
+    }
+    if (stepT >= 0) {
+      const dur = 0.30;
+      stepT += dt;
+      const u = Math.min(1, stepT / dur);
+      const e = Math.pow(u, 2.1);                     /* slow to tip, quick to drop */
+      ang = angFrom + dir * STEP * e;
+      x = xFrom + dir * STEP * RAD * e;
+      lift = Math.sin(Math.PI * u) * 0.075;           /* rides up over the edge */
+      if (u >= 1) {
+        stepT = -1;
+        land(4.2);
+        const runLen = target.roll >= 1 ? 4 : 2;
+        if (++steps >= runLen || Math.abs(x) > 1.45) {
+          steps = 0;
+          rest = (target.roll >= 1 ? 0.45 : 1.4) + Math.random() * 0.6;
+          dir *= -1;
+        }
+      }
+    }
+  } else {
+    /* settle back to centre, still turned to whatever facet it stopped on */
+    x += (0 - x) * Math.min(1, dt * 1.6);
+    ang += (0 - ang % (Math.PI * 2)) * 0 + 0;
+    stepT = -1; steps = 0; rest = 0; wind = 0;
+  }
+
+  /* ---- angry: stomping bounces with real gravity and hard landings ---- */
+  if (angry) {
+    stompT -= dt;
+    if (stompT <= 0 && !airborne) {
+      yV = 2.1 + Math.random() * 0.7; airborne = true;
+      sq.v -= 3.0;                                   /* stretch on the launch */
+      stompT = 0.5 + Math.random() * 0.25;
+    }
+  }
+  if (airborne) {
+    yV -= 13 * dt; y += yV * dt;
+    if (y <= 0) { y = 0; airborne = false; land(7.5 + Math.abs(yV)); ty.v += (Math.random() - 0.5) * 5; }
+  } else {
+    y += (0 - y) * Math.min(1, dt * 8);
+  }
+
+  /* ---- idle: a bored rock shifts its weight and huffs ---- */
+  if (!rolling && !angry) {
+    evtT -= dt;
+    if (evtT <= 0) {
+      const r = Math.random();
+      if (r < 0.4) { sq.v += 2.4; }                                 /* huff */
+      else if (r < 0.72) { ty.v += (Math.random() < 0.5 ? -1 : 1) * 2.6; } /* grinds round */
+      else { tz.v += (Math.random() - 0.5) * 5; tx.v += 1.6; }      /* irritable shudder */
+      evtT = 2.4 + Math.random() * 4;
+    }
+  }
+
+  /* ---- talking: one impulse per syllable ---- */
+  if (target === MOODS.talking) {
+    sylT -= dt;
+    if (sylT <= 0) {
+      sq.v += 1.4 + Math.random() * 1.2;
+      tz.v += (Math.random() - 0.5) * 2.2;
+      sylT = 0.12 + Math.random() * 0.16;
+    }
+  }
+
+  spring(sq, 190, 11, dt);
+  const rockPhase = t * m.rockSpeed * 2.0;
+  const rockAmt = Math.sin(rockPhase) * m.rock;
+  spring(tz, 70, 6.5, dt, rolling && stepT >= 0 ? dir * 0.07 - wind * dir * 0.16 : rockAmt);
+  spring(tx, 70, 6.5, dt, m.lean * 0.22);
+  spring(ty, 40, 5, dt, 0);
+
+  const tremor = m.jitter * 0.016;
+  const breathe = Math.sin(t * 1.25) * 0.008;
+
+  boulder.position.set(
+    x + (Math.random() - 0.5) * tremor,
+    y + lift + breathe * 0.6 + Math.abs(rockAmt) * 0.42,
+    (Math.random() - 0.5) * tremor);
+  boulder.rotation.set(
+    tx.p + (Math.random() - 0.5) * tremor,
+    ty.p,
+    tz.p + (Math.random() - 0.5) * tremor * 1.4);
+
+  /* facet rotation lives on the body so tilts stay independent */
+  body.rotation.z = -ang;
+  body.rotation.x = Math.sin(ang * 0.5) * 0.06;
+
+  const s = sq.p * 0.09 + breathe;
+  body.scale.set(1 + s * 0.55, 1 - s, 1 + s * 0.55);
+};
+
+stage.setObject(boulder);
+/* no cast shadow — the rock floats in the void */
+stage._ground.visible = false;
+stage._key.castShadow = false;
+boulder.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+</script>
+</body>
+</html>
