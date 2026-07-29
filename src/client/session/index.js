@@ -1,26 +1,3 @@
-/**
- * Conversation transport — the voice pipeline.
- *
- * A session owns the call and emits a small, transport-agnostic event
- * vocabulary. The page wires those events to the boulder once; the boulder
- * never learns what a WebSocket is.
- *
- *   'state'        'listening' | 'thinking' | 'speaking' | 'idle'
- *   'caption'      the assistant transcript for this turn, in full
- *   'user'         what the person said, in full
- *   'level'        0..1 sustained amplitude — mic while listening, Rock while speaking
- *   'pulse'        0..1 transient — a discrete event worth a jolt
- *   'interrupted'  the person talked over Rock
- *   'tool'         a label while a server-side tool works, or null
- *   'busy'         whether a response is in flight
- *   'ready'        { model, voice } the proxy actually used
- *   'done'         { usage }
- *   'error'        { message }
- *
- * Swapping providers means writing a different module with this surface. The
- * page's wiring block and the boulder do not change.
- */
-
 import { createAudio, createCapture, createPlayer } from './audio.js';
 import { encodePCM } from './codec.js';
 import { createEmitter } from './emitter.js';
@@ -30,9 +7,6 @@ import { connect } from './socket.js';
 
 const MIC_CONSTRAINTS = {
   audio: {
-    // Rock's voice comes out of the speakers and straight back into the mic.
-    // Cancellation runs against the render stream, which includes anything Web
-    // Audio sends to `destination` — so this covers our own playback.
     echoCancellation: true,
     noiseSuppression: true,
     autoGainControl: true,
@@ -40,16 +14,6 @@ const MIC_CONSTRAINTS = {
   },
 };
 
-/**
- * Why the microphone can't be asked for at all, or null if it can.
- *
- * Browsers only expose `navigator.mediaDevices` on a secure origin, so a page
- * served over plain http:// doesn't have the namespace — not an empty one,
- * none at all. Reaching straight for getUserMedia there throws "Cannot read
- * properties of undefined", which is true and useless. The same check catches
- * the embedded browsers (in-app webviews) that withhold capture on an
- * otherwise secure page.
- */
 function micUnavailable() {
   if (navigator.mediaDevices?.getUserMedia) return null;
   return globalThis.isSecureContext === false
@@ -65,18 +29,16 @@ export function createVoiceSession({ model, voice } = {}) {
   let currentVoice = voice;
 
   let call = null;
-  let audio = null; // { ctx, output, outAnalyser }
+  let audio = null;
   let capture = null;
   let player = null;
   let micStream = null;
   let micAnalyser = null;
 
   let state = 'idle';
+  let muted = false;
   let connecting = false;
-  // stop() can land mid-dial. Bumping this retires the dial in flight.
   let generation = 0;
-  // Bumped by the setters, snapshotted at connect: unequal means a picker moved
-  // after the socket opened, and the live call is on settings nobody asked for.
   let picked = 0;
   let dialledPick = 0;
 
@@ -103,10 +65,6 @@ export function createVoiceSession({ model, voice } = {}) {
     playing: () => player?.playing ?? false,
   });
 
-  /* One loop for both jobs that have to happen every frame: metering, and
-     noticing that the playback queue has run dry. The queue is the only thing
-     that knows when Rock has actually stopped talking — `response.done` fires
-     while seconds of audio are still booked. */
   function tick() {
     frame = requestAnimationFrame(tick);
 
@@ -117,8 +75,6 @@ export function createVoiceSession({ model, voice } = {}) {
     emit('level', level);
   }
 
-  /* --- lifecycle ----------------------------------------------------------- */
-
   async function start() {
     if (call || connecting) return;
     connecting = true;
@@ -126,7 +82,6 @@ export function createVoiceSession({ model, voice } = {}) {
     const abandoned = () => mine !== generation;
 
     try {
-      // Prompted first, so a denied mic costs nothing else.
       const unavailable = micUnavailable();
       if (unavailable) throw new Error(unavailable);
       micStream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
@@ -144,15 +99,15 @@ export function createVoiceSession({ model, voice } = {}) {
         model: currentModel,
         onEvent: events.handle,
         onClose: (reason) => {
-          if (!call) return; // our own stop() closing the socket
+          if (!call) return;
           if (reason) fail(reason);
           stop();
         },
       });
       if (abandoned()) return stop();
 
-      // Last, so no frame is captured before there is a socket to put it on.
       capture = await createCapture(audio.ctx, micStream, (samples) => {
+        if (muted) return;
         call?.send({ type: 'input_audio_buffer.append', audio: encodePCM(samples) });
       });
       if (abandoned()) return stop();
@@ -168,9 +123,9 @@ export function createVoiceSession({ model, voice } = {}) {
   }
 
   function stop() {
-    generation++; // retires any dial still in flight
+    generation++;
     const closing = call;
-    call = null; // before close(), so onClose knows this teardown is ours
+    call = null;
 
     cancelAnimationFrame(frame);
     frame = 0;
@@ -184,16 +139,16 @@ export function createVoiceSession({ model, voice } = {}) {
     audio?.ctx.close();
 
     call = capture = player = micStream = audio = micAnalyser = null;
+    muted = false;
     events.reset();
     setState('idle');
   }
 
-  /** Typed input, for when speaking out loud isn't an option. Same conversation,
-   *  same voice coming back. */
   function send(text) {
     const content = text.trim();
     if (!content || !call?.open) return;
     messages.push({ role: 'user', content });
+    emit('message', { role: 'user', content });
     call.send({
       type: 'conversation.item.create',
       item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: content }] },
@@ -219,8 +174,15 @@ export function createVoiceSession({ model, voice } = {}) {
     get state() {
       return state;
     },
-    /** Both are pinned when the proxy opens its socket, so changing either only
-     *  takes effect on the next call — the page redials. */
+    get muted() {
+      return muted;
+    },
+    set muted(next) {
+      muted = Boolean(next);
+      micStream?.getAudioTracks().forEach((track) => {
+        track.enabled = !muted;
+      });
+    },
     get model() {
       return currentModel;
     },
@@ -235,15 +197,9 @@ export function createVoiceSession({ model, voice } = {}) {
       currentVoice = next;
       picked++;
     },
-    /** The live call was dialled before the current pick — it is on the wrong
-     *  model or voice, and only another dial can fix that. */
     get stale() {
       return !!call && picked !== dialledPick;
     },
-    /** Manual barge-in, for the typed path — the server's VAD covers the spoken
-     *  case on its own. Both the upstream generation and the local queue have to
-     *  stop; cancelling one without the other leaves Rock talking into a turn
-     *  that has already ended. */
     cancel() {
       if (!call?.open) return;
       if (events.responding) call.send({ type: 'response.cancel' });

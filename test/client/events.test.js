@@ -4,7 +4,6 @@ import { describe, it } from 'node:test';
 import { encodePCM } from '../../src/client/session/codec.js';
 import { createEventHandler } from '../../src/client/session/events.js';
 
-/** A handler wired to spies, plus a fake playback queue we can pose. */
 function harness({ playing = false } = {}) {
   const emitted = [];
   const states = [];
@@ -42,8 +41,6 @@ const AUDIO = encodePCM(new Int16Array([1, 2, 3, 4]));
 
 describe('transcripts', () => {
   it('appends a .delta but replaces a .updated', () => {
-    // This is the xAI divergence that matters: `.updated` carries the whole
-    // turn so far, so appending it stutters — "hi hi there hi there rock".
     const h = harness();
     h.events.handle({ type: 'response.output_audio_transcript.delta', delta: 'get ' });
     h.events.handle({ type: 'response.output_audio_transcript.delta', delta: 'off my lawn' });
@@ -60,7 +57,6 @@ describe('transcripts', () => {
     h.events.handle({ type: 'conversation.item.input_audio_transcription.updated', transcript: 'what is' });
     h.events.handle({ type: 'conversation.item.input_audio_transcription.updated', transcript: 'what is granite' });
     assert.deepEqual(h.of('user'), ['what is', 'what is granite']);
-    // Only `completed` is a finished turn worth keeping in the history.
     assert.equal(h.messages.length, 0);
 
     h.events.handle({ type: 'conversation.item.input_audio_transcription.completed', transcript: 'what is granite' });
@@ -84,8 +80,6 @@ describe('audio', () => {
   });
 
   it('ignores a delta from a response that has been superseded', () => {
-    // Chunks already in flight when a turn was cut short would otherwise play
-    // half a sentence on top of the next answer.
     const h = harness();
     h.events.handle({ type: 'response.created', response: { id: 'resp_2' } });
     h.events.handle({ type: 'response.output_audio.delta', delta: AUDIO, response_id: 'resp_1' });
@@ -119,7 +113,6 @@ describe('barge-in', () => {
   });
 
   it('drops stale audio when a new response starts mid-playback', () => {
-    // The backstop for a server that cut a turn short without telling us.
     const h = harness({ playing: true });
     h.events.handle({ type: 'response.created', response: { id: 'resp_1' } });
     assert.ok(h.played.includes('<flush>'));
@@ -128,8 +121,6 @@ describe('barge-in', () => {
 
 describe('end of turn', () => {
   it('waits for the queue to drain before it stops speaking', () => {
-    // `response.done` arrives while seconds of audio are still booked, so it
-    // is the playback queue — not this event — that ends the turn.
     const h = harness({ playing: true });
     h.events.handle({ type: 'response.done', response: {} });
     assert.equal(h.states.includes('listening'), false);

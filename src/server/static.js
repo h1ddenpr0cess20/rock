@@ -1,10 +1,3 @@
-/**
- * Static hosting for the built client — production only.
- *
- * In development Vite serves the page itself, with its own transform pipeline
- * and HMR, and this file is never loaded.
- */
-
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 
@@ -25,7 +18,6 @@ export function createStaticMiddleware(root) {
   const base = root.endsWith(sep) ? root : root + sep;
 
   async function read(path) {
-    // `my icon.png` arrives as `my%20icon.png`; normalize() below runs on the result.
     let name;
     try {
       name = decodeURIComponent(path);
@@ -34,7 +26,6 @@ export function createStaticMiddleware(root) {
     }
 
     const file = join(base, normalize(name));
-    // normalize() collapses any ../ before it can escape the build directory.
     if (!file.startsWith(base)) return null;
     try {
       if (!(await stat(file)).isFile()) return null;
@@ -48,7 +39,6 @@ export function createStaticMiddleware(root) {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
 
     const path = req.url.split('?')[0];
-    // Vite fingerprints everything under /assets/, so those are safe to pin.
     const immutable = path.startsWith('/assets/');
     const found = (await read(path)) ?? (extname(path) ? null : await read('/index.html'));
 

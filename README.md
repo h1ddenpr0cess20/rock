@@ -18,6 +18,12 @@ npm run dev               # → http://localhost:5173
 Click the mic, allow the browser's microphone prompt, and start talking. Talk
 over him and he stops — and stomps.
 
+The mic button is a microphone switch, not a hang-up: turning it off stops what
+you send and leaves the answer playing, and the conversation is still there when
+you turn it back on. The mic also turns itself off after a minute of nothing
+said, so it isn't hot on a call nobody is having — the call and everything said
+on it survive that too.
+
 | Script | |
 |---|---|
 | `npm run dev` | Vite, with the proxy mounted as middleware — one process |
@@ -141,6 +147,31 @@ The worklet lives in `public/` rather than being imported, because Vite inlines
 small assets as `data:text/javascript` URLs and `addModule()` rejects those on
 Safari and under any CSP that disallows `data:`.
 
+## History
+
+Every completed turn is written to `localStorage` under `rock.history.v1`, one
+record per call, and the `log` button in the composer opens them newest first.
+It is the only thing here that outlives the call: the session forgets a
+conversation at teardown, and a redial starts one the new voice has no memory
+of.
+
+`new` starts a fresh conversation: it closes the record and, if a call is up,
+dials again — the model's memory of what was said is the call itself, so a new
+one is the only thing that clears it.
+
+Nothing is uploaded. The log is in the browser that made the call, the proxy
+never sees it, and `clear` — which asks once — removes it.
+
+Storage is not assumed to work: private-mode Safari hands back a store that
+throws on write, and the log falls back to memory for the life of the page
+rather than failing the call. The last 40 conversations are kept, and the
+oldest are shed to stay inside a 300 KB budget, since that space belongs to the
+whole origin.
+
+Old turns are not replayed into a new call. Reading them back to the model
+would make the log a memory rather than a record, and `session.tools` has no
+path for it that doesn't also let the page rewrite the persona.
+
 ## Tools
 
 `web_search` and `x_search` are on by default. Both execute inside xAI, so
@@ -198,6 +229,7 @@ src/
     main.js             The wiring, and nothing else
     styles.css          The HUD around the boulder
     api.js              /api/config, as a function
+    history.js          Past conversations, in localStorage
     boulder/            Geometry and animation. Knows nothing about transports
       index.js            The controller and the per-frame loop
       geometry.js         Noise, cutting planes, vertex colours
@@ -214,6 +246,7 @@ src/
       constants.js        The wire format, shared with the server
     ui/
       hud.js              Status chip, transcript, caption, tool label
+      history.js          The log panel behind the `log` button
       controls.js         Mic, text field, send, pickers
       viewport.js         Keeps the composer above the on-screen keyboard
       stage.js            Strips the starter component's own chrome
@@ -239,7 +272,7 @@ re-copying it drops them.
 ## The transport seam
 
 `session/index.js` exposes `on`, `start`, `stop`, `send`, `cancel`, `messages`,
-`connected`, `busy`, `stale`, `state`, `model`, `voice` — and emits:
+`connected`, `busy`, `stale`, `state`, `muted`, `model`, `voice` — and emits:
 
 ```
 'state'        listening | thinking | speaking | idle
@@ -249,6 +282,7 @@ re-copying it drops them.
 'pulse'        0..1 transient, one per discrete event
 'interrupted'  the person talked over Rock
 'tool'         a label while a server-side tool works, or null
+'message'      a completed turn, { role, content } — what the log stores
 'busy'         whether a response is in flight
 'ready'        { model, voice } the proxy actually used
 'done'         { usage }

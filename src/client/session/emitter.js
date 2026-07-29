@@ -1,5 +1,3 @@
-/** Minimal typed-by-convention event bus. `on` returns its own unsubscribe. */
-
 export function createEmitter() {
   const listeners = new Map();
 

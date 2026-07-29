@@ -32,8 +32,6 @@ describe('GET /api/config', () => {
     assert.equal(body.tools.web_search, true);
     assert.equal(body.tools.x_search, true);
     assert.deepEqual(body.tools.mcp, ['orders']);
-    // The label is all the page gets. The URL and the bearer token are the
-    // reason this endpoint returns names rather than the config object.
     const raw = JSON.stringify(body);
     assert.equal(raw.includes('hunter2'), false);
     assert.equal(raw.includes('mcp.example.com'), false);
