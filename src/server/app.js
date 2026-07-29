@@ -1,10 +1,3 @@
-/**
- * The production server, assembled but not started.
- *
- * Kept apart from index.js so importing it — from a test, or to embed Rock in
- * something larger — doesn't bind a port as a side effect.
- */
-
 import { createServer } from 'node:http';
 import { createServer as createSecureServer } from 'node:https';
 import { fileURLToPath } from 'node:url';
@@ -16,10 +9,8 @@ import { createStaticMiddleware } from './static.js';
 
 const DIST = fileURLToPath(new URL('../../dist', import.meta.url));
 
-/** Where the browser opens its half of the call. Shared with vite.config.js. */
 export const REALTIME_PATH = '/realtime';
 
-/** Runs middleware in order until one of them answers. */
 export function chain(...middleware) {
   return (req, res) => {
     let i = 0;
@@ -40,9 +31,6 @@ export function chain(...middleware) {
   };
 }
 
-/** `tls` is a { key, cert } pair — see src/server/tls.js. Without one the
- *  server is HTTP, which is all `localhost` ever needs. The page derives its
- *  socket scheme from the page's own, so wss: follows from https: for free. */
 export function createApp(config = loadConfig(), { root = DIST, tls = null } = {}) {
   const handle = chain(createApiMiddleware(config), createStaticMiddleware(root));
   const server = tls ? createSecureServer(tls, handle) : createServer(handle);

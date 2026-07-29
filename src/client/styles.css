@@ -1,18 +1,12 @@
-/* Rock — page chrome.
-   The boulder itself is WebGL and styles nothing here; this is the HUD around
-   it. The palette is the rock's own: warm pale stone on near-black dirt, with
-   the state colours pulled off the same granite rather than added to it. */
-
 :root {
   --ink: #e8dfd2;
   --void: #0c0b0a;
-  --listening: #7fb2c9;  /* cold slate — it's paying attention */
-  --thinking: #c9a15f;   /* ochre, like weathered iron in the stone */
-  --speaking: #e8dfd2;   /* the rock's own colour */
+  --listening: #7fb2c9;
+  --thinking: #c9a15f;
+  --speaking: #e8dfd2;
   --error: #d97757;
   --stack: min(620px, 100%);
   --gutter: 24px;
-  /* Set by ui/viewport.js when an on-screen keyboard covers the bottom. */
   --keyboard-inset: 0px;
   --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
@@ -23,7 +17,6 @@ html, body {
   height: 100%;
   background: var(--void);
   overflow: hidden;
-  /* No pull-to-refresh or rubber-banding when a drag on the boulder overshoots. */
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -32,21 +25,15 @@ three-d-stage:not(:defined) { visibility: hidden; }
 three-d-stage {
   display: block;
   width: 100%;
-  /* dvh, so mobile browser chrome collapsing doesn't crop the boulder. */
   height: 100dvh;
-  /* The canvas is a drag surface for orbit controls, not a scroll surface. */
   touch-action: none;
 }
 
-/* Shared by every small label: mono, uppercase, wide tracking. */
 .chip {
   font: 600 11px/1 var(--mono);
   letter-spacing: .14em;
   text-transform: uppercase;
 }
-
-/* --- status ---------------------------------------------------------------
-   Top-left, out of the HUD's way at every width. */
 
 #status {
   position: fixed;
@@ -72,9 +59,8 @@ three-d-stage {
 #status[data-state="thinking"]   { color: var(--thinking); }
 #status[data-state="speaking"]   { color: var(--speaking); }
 #status[data-state="connecting"] { color: rgba(232, 223, 210, .72); }
+#status[data-state="muted"]      { color: rgba(232, 223, 210, .32); }
 
-/* A server-side tool working, under the status chip. Rock won't tell you he
-   looked something up, so this is the only sign of it. */
 #tool {
   position: fixed;
   top: calc(env(safe-area-inset-top) + 44px);
@@ -86,11 +72,6 @@ three-d-stage {
   pointer-events: none;
 }
 #tool.visible { opacity: .75; }
-
-/* --- the bottom stack -----------------------------------------------------
-   Transcript, caption and composer in flow order. Nothing is positioned
-   against a hand-measured offset, so the composer can wrap to two rows and
-   everything above it moves up on its own. */
 
 #hud {
   position: fixed;
@@ -107,13 +88,10 @@ three-d-stage {
     calc(env(safe-area-inset-right) + var(--gutter))
     calc(env(safe-area-inset-bottom) + var(--keyboard-inset) + 22px)
     calc(env(safe-area-inset-left) + var(--gutter));
-  /* Only the controls take input — the rest of the strip stays draggable so
-     the boulder can still be spun behind it. */
   pointer-events: none;
 }
 #hud > * { width: var(--stack); }
 
-/* What the person said, above the answer — smaller, dimmer, one line. */
 #you {
   font: 400 13px/1.5 var(--sans);
   color: rgba(232, 223, 210, .42);
@@ -127,7 +105,6 @@ three-d-stage {
 }
 #you.visible { opacity: 1; }
 
-/* Fades when spent; scrolls on its own if Rock runs long, which he won't. */
 #caption {
   max-height: 34dvh;
   overflow-y: auto;
@@ -135,7 +112,6 @@ three-d-stage {
   color: rgba(232, 223, 210, .92);
   text-align: center;
   text-wrap: pretty;
-  /* The transcript has its own line breaks; the default collapses them. */
   white-space: pre-wrap;
   overflow-wrap: break-word;
   text-shadow: 0 1px 24px rgba(12, 11, 10, .95), 0 1px 4px rgba(12, 11, 10, .9);
@@ -159,15 +135,12 @@ three-d-stage {
   white-space: pre;
 }
 
-/* --- composer ------------------------------------------------------------- */
-
 #composer {
   pointer-events: auto;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 7px;
-  /* Squarer than the slime's pill — this one is cut from something. */
   border-radius: 8px;
   background: rgba(232, 223, 210, .05);
   border: 1px solid rgba(232, 223, 210, .14);
@@ -180,14 +153,11 @@ three-d-stage {
   background: rgba(232, 223, 210, .08);
 }
 
-/* The UA default is a bright ring that has nothing to do with this palette.
-   Keyboard users still get an unmissable one; pointer users get nothing. */
 #composer :focus-visible {
   outline: 2px solid rgba(232, 223, 210, .55);
   outline-offset: 2px;
 }
 
-/* Wide enough for five controls in a row: the pickers join the flex line. */
 #options { display: contents; }
 #send { order: 1; }
 
@@ -198,14 +168,12 @@ three-d-stage {
   background: none;
   border: 0;
   color: var(--ink);
-  /* 16px is the threshold below which iOS Safari zooms the page on focus. */
   font: 400 16px/1.4 var(--sans);
 }
 #prompt::placeholder { color: rgba(232, 223, 210, .34); }
 #prompt:focus { outline: none; }
 #prompt:disabled { cursor: default; }
 
-/* The mic is the primary control — everything else is the fallback path. */
 #mic {
   appearance: none;
   cursor: pointer;
@@ -227,6 +195,13 @@ three-d-stage {
   color: var(--void);
   box-shadow: 0 0 0 4px rgba(232, 223, 210, .12);
 }
+#mic.muted {
+  background: var(--ink);
+  color: var(--void);
+}
+#mic.muted:hover { opacity: .85; }
+#mic .slash { opacity: 0; }
+#mic.muted .slash { opacity: 1; }
 #mic[data-busy], #mic:disabled { opacity: .5; cursor: default; }
 #mic svg { display: block; }
 
@@ -266,11 +241,8 @@ three-d-stage {
 #model:hover, #voice:hover { color: rgba(232, 223, 210, .9); border-color: rgba(232, 223, 210, .28); }
 #model:focus, #voice:focus { outline: none; border-color: rgba(232, 223, 210, .4); }
 #model option, #voice option { background: #14110f; color: var(--ink); }
-/* Voice names are one short word — it never needs the model's width. */
 #voice { max-width: 96px; }
 
-/* What this build can reach, under the composer. Quiet: it is a fact about the
-   deployment, not something to read every session. */
 #tools {
   text-align: center;
   color: rgba(232, 223, 210, .26);
@@ -280,16 +252,132 @@ three-d-stage {
 }
 #tools.visible { opacity: 1; }
 
-/* --- narrow -------------------------------------------------------------- */
+#history-toggle {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 10px);
+  right: calc(env(safe-area-inset-right) + var(--gutter));
+  z-index: 7;
+  appearance: none;
+  cursor: pointer;
+  padding: 10px 13px;
+  border-radius: 4px;
+  background: rgba(232, 223, 210, .1);
+  border: 1px solid rgba(232, 223, 210, .16);
+  color: rgba(232, 223, 210, .62);
+  transition: border-color .2s;
+}
+#history-toggle:hover { color: rgba(232, 223, 210, .9); border-color: rgba(232, 223, 210, .28); }
+
+#history {
+  position: fixed;
+  z-index: 6;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(env(safe-area-inset-top) + 58px);
+  bottom: calc(env(safe-area-inset-bottom) + 22px);
+  width: var(--stack);
+  max-width: calc(100% - 2 * var(--gutter));
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  background: rgba(12, 11, 10, .96);
+  border: 1px solid rgba(232, 223, 210, .14);
+}
+#history[hidden] { display: none; }
+
+#history-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  color: rgba(232, 223, 210, .34);
+  border-bottom: 1px solid rgba(232, 223, 210, .1);
+}
+#history-head .chip:first-child { flex: 1; }
+#history-head button {
+  appearance: none;
+  cursor: pointer;
+  padding: 7px 10px;
+  border-radius: 4px;
+  background: rgba(232, 223, 210, .06);
+  border: 0;
+  color: rgba(232, 223, 210, .6);
+  transition: background .2s, color .2s;
+}
+#history-head button:hover { background: rgba(232, 223, 210, .14); color: var(--ink); }
+#history-head button:disabled { opacity: .35; cursor: default; }
+#history-head button:disabled:hover { background: rgba(232, 223, 210, .06); color: rgba(232, 223, 210, .6); }
+#history-head #history-new {
+  background: var(--ink);
+  color: var(--void);
+  transition: opacity .2s;
+}
+#history-head #history-new:hover {
+  background: var(--ink);
+  color: var(--void);
+  opacity: .85;
+}
+#history-head #history-new:disabled {
+  background: none;
+  color: color-mix(in srgb, var(--ink) 55%, transparent);
+  opacity: 1;
+}
+#history-clear.armed { color: var(--error); }
+#history :focus-visible {
+  outline: 2px solid rgba(232, 223, 210, .55);
+  outline-offset: 2px;
+}
+
+#history-log {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 16px 18px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(232, 223, 210, .18) transparent;
+}
+
+#history .entry { padding: 14px 0; }
+#history .entry + .entry { border-top: 1px solid rgba(232, 223, 210, .08); }
+#history .entry > header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: rgba(232, 223, 210, .38);
+  margin-bottom: 10px;
+}
+#history .entry > header > * { white-space: nowrap; }
+#history .meta { color: rgba(232, 223, 210, .22); }
+
+#history .turn {
+  margin: 0 0 8px;
+  font: 400 14px/1.6 var(--sans);
+  color: rgba(232, 223, 210, .9);
+  text-wrap: pretty;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+#history .turn[data-role="user"] { color: rgba(232, 223, 210, .5); }
+#history .who {
+  color: rgba(232, 223, 210, .3);
+  margin-right: 8px;
+}
+#history .turn[data-role="assistant"] .who { color: var(--thinking); }
+
+#history .empty {
+  margin: 18px 0;
+  font: 400 14px/1.6 var(--sans);
+  color: rgba(232, 223, 210, .34);
+  text-align: center;
+}
 
 @media (max-width: 640px) {
   :root { --gutter: 14px; }
 
   #status { top: calc(env(safe-area-inset-top) + 14px); }
   #tool { top: calc(env(safe-area-inset-top) + 38px); }
+  #history-toggle { top: calc(env(safe-area-inset-top) + 4px); }
 
-  /* Five controls don't fit across a phone. The pickers drop to their own row
-     and split it; mic, field and send keep the first. */
   #composer { flex-wrap: wrap; }
   #options {
     display: flex;
@@ -303,19 +391,30 @@ three-d-stage {
     min-width: 0;
     padding: 11px 24px 11px 12px;
   }
+  #history {
+    top: calc(env(safe-area-inset-top) + 50px);
+    bottom: calc(env(safe-area-inset-bottom) + 14px);
+  }
+  #history-log { padding: 4px 14px 16px; }
 
   #caption { font-size: 15px; max-height: 28dvh; }
 }
 
-/* Fingers, not cursors — hit targets go up and the hovers stop mattering. */
 @media (pointer: coarse) {
   #mic, #send { width: 44px; height: 44px; }
+  #history-toggle { padding: 13px 15px; }
+  #history-head button { padding: 12px 14px; }
+  #history-toggle:hover {
+    color: rgba(232, 223, 210, .62);
+    border-color: rgba(232, 223, 210, .14);
+  }
   #mic:hover { background: rgba(232, 223, 210, .09); color: rgba(232, 223, 210, .7); }
-  #mic[aria-pressed="true"]:hover { background: var(--ink); color: var(--void); }
+  #mic[aria-pressed="true"]:hover, #mic.muted:hover { background: var(--ink); color: var(--void); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #you, #caption, #status, #tool, #tools, #composer, #mic, #send, #model, #voice {
+  #you, #caption, #status, #tool, #tools, #composer, #mic, #send, #model, #voice,
+  #history-toggle, #history-head button {
     transition-duration: .01ms;
   }
 }

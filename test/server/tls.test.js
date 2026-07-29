@@ -1,12 +1,3 @@
-/**
- * Which certificate the server picks up, and whether the socket survives it.
- *
- * The TLS path exists for one reason — a phone can't reach getUserMedia over
- * plain HTTP — so it isn't done until the realtime socket comes up over wss
- * too. The page derives ws:/wss: from its own scheme, so the last thing that
- * could go wrong is the upgrade handler not being reachable through TLS.
- */
-
 import assert from 'node:assert/strict';
 import { X509Certificate } from 'node:crypto';
 import { once } from 'node:events';
@@ -42,7 +33,6 @@ describe('tls', () => {
   it('generates a self-signed certificate for --https', async () => {
     const tls = await loadTls({ https: true, env: {} });
 
-    // One PEM in both halves: the plugin emits key and certificate together.
     assert.equal(tls.key, tls.cert);
     const cert = new X509Certificate(tls.cert);
     assert.ok(new Date(cert.validTo) > new Date(), 'a certificate that is already expired is no use');
@@ -72,8 +62,6 @@ describe('tls', () => {
     });
 
     it('carries the realtime socket over wss', async () => {
-      // rejectUnauthorized: false is the test standing in for the phone tapping
-      // through the warning — the certificate is self-signed either way.
       const ws = new WebSocket(`wss://127.0.0.1:${port}/realtime`, { rejectUnauthorized: false });
       await once(ws, 'open');
 

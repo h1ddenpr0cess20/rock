@@ -10,23 +10,19 @@ describe('PCM codec', () => {
   });
 
   it('encodes only the view it was given, not the whole buffer', () => {
-    // The worklet posts a transferred buffer, but a caller could pass a
-    // subarray — encoding its backing buffer would send the neighbours too.
     const backing = new Int16Array([11, 22, 33, 44, 55, 66]);
     const view = backing.subarray(2, 4);
     assert.deepEqual(decodePCM(encodePCM(view)), new Int16Array([33, 44]));
   });
 
   it('round-trips a chunk larger than the apply() batch size', () => {
-    // 0x8000 bytes at a time: this is the loop that keeps a long turn of audio
-    // from overflowing the argument stack.
     const samples = new Int16Array(70_000);
     for (let i = 0; i < samples.length; i++) samples[i] = (i * 37) % 32768;
     assert.deepEqual(decodePCM(encodePCM(samples)), samples);
   });
 
   it('refuses anything that is not whole samples', () => {
-    assert.equal(decodePCM(encodePCM(new Uint8Array([1, 2, 3]))), null); // odd byte count
+    assert.equal(decodePCM(encodePCM(new Uint8Array([1, 2, 3]))), null);
     assert.equal(decodePCM('not base64!!'), null);
     assert.equal(decodePCM(''), null);
     assert.equal(decodePCM(undefined), null);

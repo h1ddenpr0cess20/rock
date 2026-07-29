@@ -12,8 +12,6 @@ describe('loadConfig', () => {
   });
 
   it('puts an unpublished voice at the front of the picker rather than dropping it', () => {
-    // The list here goes stale; the API doesn't. A custom voice id is exactly
-    // what an operator would set, and refusing it would be wrong.
     const config = loadConfig({ XAI_VOICE: 'custom-voice-abc123' });
     assert.equal(config.defaultVoice, 'custom-voice-abc123');
     assert.equal(config.voices[0], 'custom-voice-abc123');
@@ -26,7 +24,6 @@ describe('loadConfig', () => {
     assert.equal(loadConfig({ XAI_WEB_SEARCH: 'false' }).tools.webSearch, false);
     assert.equal(loadConfig({ XAI_X_SEARCH: '0' }).tools.xSearch, false);
     assert.equal(loadConfig({ XAI_X_SEARCH: 'off' }).tools.xSearch, false);
-    // An empty value is "unset", not "off" — `XAI_WEB_SEARCH=` in a .env file.
     assert.equal(loadConfig({ XAI_WEB_SEARCH: '' }).tools.webSearch, true);
   });
 
@@ -46,7 +43,6 @@ describe('loadConfig', () => {
   });
 
   it('drops malformed MCP entries instead of refusing to boot', () => {
-    // Rock still talks without tools; a typo in one entry shouldn't be fatal.
     const { tools } = loadConfig({
       XAI_MCP_SERVERS: '[{"server_url":"https://a.example/mcp"},{"server_label":"b","server_url":"https://b.example/mcp"}]',
     });
@@ -65,7 +61,6 @@ describe('buildTools', () => {
     });
 
     assert.deepEqual(tools.map((t) => t.type), ['web_search', 'x_search', 'mcp']);
-    // The MCP entry travels whole — its auth header is the point of it.
     assert.equal(tools[2].authorization, 'Bearer x');
   });
 

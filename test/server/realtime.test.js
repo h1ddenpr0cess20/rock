@@ -1,11 +1,3 @@
-/**
- * The proxy, end to end: browser socket → app → stub xAI.
- *
- * The security-relevant behaviour is all here. The persona and the MCP
- * credentials only stay server-side because these frames are dropped, so this
- * is the file that has to fail if that stops being true.
- */
-
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
@@ -48,7 +40,6 @@ describe('sanitize', () => {
     };
     assert.deepEqual(sanitize(user), user);
 
-    // force_message is how you put words in Rock's mouth.
     assert.equal(sanitize({
       type: 'conversation.item.create',
       item: { type: 'force_message', role: 'assistant', content: [] },
@@ -104,7 +95,6 @@ describe('the proxy', () => {
     const client = await app.openSocket();
     const ready = await client.waitFor('proxy.ready');
 
-    // What the page learns is the settled model and voice, and nothing else.
     assert.deepEqual(Object.keys(ready).sort(), ['model', 'type', 'voice']);
     assert.equal(JSON.stringify(client.frames).includes('hunter2'), false);
   });
@@ -131,8 +121,6 @@ describe('the proxy', () => {
   });
 
   it('queues frames sent before xAI has answered the handshake', async () => {
-    // The mic can open before the upstream socket does. Dropping that first
-    // half-second loses the start of the first thing anyone says.
     const client = await app.openSocket();
     const before = xai.received().length;
     client.send({ type: 'input_audio_buffer.append', audio: 'BBBBBBBB' });

@@ -1,11 +1,3 @@
-/**
- * A WebSocket server standing in for api.x.ai.
- *
- * Records the URL and headers it was dialled with and every frame it receives,
- * so a test can assert on what the proxy actually sent upstream rather than on
- * what it meant to.
- */
-
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 
@@ -16,15 +8,12 @@ export async function startXaiStub() {
   const wss = new WebSocketServer({ server: http });
 
   const state = {
-    /** Every frame the proxy sent upstream, parsed, in order. */
     received: [],
-    /** The request the proxy opened the socket with. */
     url: null,
     headers: null,
     socket: null,
   };
 
-  /** Resolves once `received` has at least `n` frames. */
   let waiters = [];
   const check = () => {
     waiters = waiters.filter((w) => {
@@ -59,9 +48,7 @@ export async function startXaiStub() {
     url: () => state.url,
     headers: () => state.headers,
     received: () => state.received,
-    /** `ws://…` — what to hand loadConfig() as XAI_REALTIME_URL. */
     address: `ws://127.0.0.1:${port}`,
-    /** A frame from xAI down to the browser. */
     send: (event) => state.socket.send(JSON.stringify(event)),
     waitFor(n, ms = 2000) {
       if (state.received.length >= n) return Promise.resolve(state.received);
