@@ -1,9 +1,8 @@
 # Rock
 
-A voice agent rendered as a boulder. Several tons of granite that has been
-sitting in the same spot for ten thousand years, is not impressed by your
-question, and will answer it correctly anyway. Driven by an xAI Grok
-speech-to-speech session; the rock's squash, stomp and sway are read off the
+A voice agent rendered as a boulder — several tons of granite that is not
+impressed by your question and answers it correctly anyway. It runs on an xAI
+Grok speech-to-speech session, and its squash, stomp and sway are driven by the
 live audio, so it moves with whichever of you is talking.
 
 It can search the web and X, and call remote MCP servers.
@@ -17,7 +16,7 @@ npm run dev               # → http://localhost:5173
 ```
 
 Click the mic, allow the browser's microphone prompt, and start talking. Talk
-over him and he'll stop — and stomp.
+over him and he stops — and stomps.
 
 | Script | |
 |---|---|
@@ -28,35 +27,19 @@ over him and he'll stop — and stomp.
 | `npm run preview` | `build` then `start` |
 | `npm run preview:lan` | `build` then `start`, over HTTPS on the network |
 | `npm test` | `node:test`, against a stub xAI socket |
-| `npm run lint` | |
+| `npm run lint` | ESLint |
 
-### On a phone
+CI runs the lint, the tests on Node 22.12 and 24, and a build that then has to
+boot and serve itself over both HTTP and HTTPS.
 
-```sh
-npm run dev:lan           # → https://192.168.x.x:5173, printed on start
-```
+## Configuration
 
-Microphone access needs a secure context. `localhost` is one; a LAN address
-over plain HTTP is not — `navigator.mediaDevices` isn't just refused there, it
-doesn't exist, so the page can't even raise the mic prompt. The `:lan` scripts
-serve HTTPS with a self-signed certificate, which is a secure context. The
-realtime socket follows the page onto `wss:` by itself.
-
-No browser trusts that certificate, so the phone shows a warning the first time
-("Advanced" → proceed on Chrome, "Show details" → "visit this website" on
-Safari). Tap through it once per device and the mic works from then on. The
-certificate is generated on first use and cached in `node_modules/.vite/`, and
-both `:lan` scripts share it, so one warning covers both.
-
-To skip the warning entirely, bring a certificate the device already trusts —
-[mkcert](https://github.com/FiloSottile/mkcert) issues one for a LAN IP in a
-line — and point `SSL_KEY` and `SSL_CERT` at it. `npm start` then serves HTTPS
-with it and the `--https` flag is unnecessary. Same for anything public-facing.
+Both `npm run dev` and `npm start` read `.env`.
 
 | Variable | Default | Role |
 |---|---|---|
 | `XAI_API_KEY` | — | Required. Stays in the Node process. |
-| `XAI_VOICE` | `rex` | The heavy end of xAI's roster — `rex`, `sal`, `atlas`, `zagan`, `orion`, `perseus`, `leo`, `helix`, `zenith`, `rigel`, `castor`, `ursa`, `naksh`, `kepler` — or any other voice id, which is honoured and added to the picker |
+| `XAI_VOICE` | `rex` | The heavy end of xAI's roster: `rex`, `sal`, `atlas`, `zagan`, `orion`, `perseus`, `leo`, `helix`, `zenith`, `rigel`, `castor`, `ursa`, `naksh`, `kepler`. Any other voice id is honoured and added to the picker. |
 | `XAI_MODEL` | `grok-voice-latest` | Also `grok-voice-think-fast-1.0` |
 | `XAI_REALTIME_URL` | xAI | Points the proxy at a gateway or a stub |
 | `XAI_WEB_SEARCH` | `true` | |
@@ -65,7 +48,51 @@ with it and the `--https` flag is unnecessary. Same for anything public-facing.
 | `PORT` | `5173` | |
 | `SSL_KEY`, `SSL_CERT` | — | Paths to a real certificate; `npm start` then serves HTTPS |
 
-Both `npm run dev` and `npm start` read `.env`.
+### On a phone
+
+```sh
+npm run dev:lan           # → https://192.168.x.x:5173, printed on start
+```
+
+Microphone access needs a secure context. `localhost` is one; a LAN address over
+plain HTTP is not — `navigator.mediaDevices` doesn't exist there, so the page
+can't even raise the mic prompt. The `:lan` scripts serve HTTPS with a
+self-signed certificate, and the realtime socket follows the page onto `wss:`.
+
+No browser trusts that certificate, so the phone shows a warning the first time
+("Advanced" → proceed on Chrome, "Show details" → "visit this website" on
+Safari). Tap through it once per device. The certificate is cached in
+`node_modules/.vite/` and shared by both `:lan` scripts.
+
+To skip the warning, bring a certificate the device already trusts —
+[mkcert](https://github.com/FiloSottile/mkcert) issues one for a LAN IP — and
+point `SSL_KEY` and `SSL_CERT` at it. `npm start` then serves HTTPS without the
+`--https` flag.
+
+## Docker
+
+```sh
+docker run --rm -p 5173:5173 -e XAI_API_KEY=xai-... h1ddenpr0cess20/rock
+```
+
+Images go to Docker Hub on every push to `main` (`latest`) and on `v*` tags
+(`1.2.3`, `1.2`), built for `linux/amd64` and `linux/arm64`. Configuration is the
+same set of variables as `.env` — pass them with `-e` or `--env-file .env`.
+
+The container serves HTTP on `PORT` (5173 by default) and expects TLS to be
+terminated in front of it. To serve TLS from the container instead, mount a
+certificate and point `SSL_KEY` and `SSL_CERT` at it; the self-signed `--https`
+path needs a devDependency that the production image doesn't carry.
+
+To build it yourself:
+
+```sh
+docker build -t rock .
+```
+
+Publishing from a fork needs a `DOCKERHUB_TOKEN` repository secret, plus a
+`DOCKERHUB_USERNAME` repository variable if your Docker Hub account isn't
+`h1ddenpr0cess20`.
 
 ## How the call is wired
 
@@ -75,68 +102,54 @@ Every frame of audio goes through the Node process:
 browser  ──ws──▶  /realtime  ──ws──▶  wss://api.x.ai/v1/realtime
 ```
 
-That is a deliberate cost, and it is the main way this differs from an
-equivalent app on OpenAI's Realtime API. There, the browser dials the provider
-directly with an ephemeral secret and audio never touches your server. Here it
-can't:
+Unlike OpenAI's Realtime API, the browser can't dial xAI directly:
 
-- **xAI's `/v1/realtime/client_secrets` takes no `session` field.** The token it
-  mints carries no configuration, so a page that dialled xAI directly would have
-  to send its own `session.update` — putting the persona, the tool list and any
-  MCP `authorization` header in client code, where they are readable and
-  editable.
-- **The token lasts five minutes.** Conversations routinely outlive that.
+- **`/v1/realtime/client_secrets` takes no `session` field.** The token carries
+  no configuration, so a page dialling xAI directly would have to send its own
+  `session.update` — putting the persona, the tool list and any MCP
+  `authorization` header in client code.
+- **The token lasts five minutes**, and conversations routinely outlive that.
 
-So the socket lives here, and the page holds no credential of any kind. On
-connect, the proxy is the one that sends `session.update`: persona, voice,
-turn detection, audio format, tools. Only then does it forward anything the
-page queued.
+So the socket lives here and the page holds no credential. On connect the proxy
+sends `session.update` — persona, voice, turn detection, audio format, tools —
+before forwarding anything the page queued.
 
-What the page may say upstream is an allowlist, not a filter — audio frames, a
-typed message, a request to respond, a cancel. Two frames are treated as
-persona overrides and dropped: a `session.update` from the browser, and the
-`instructions` field on a `response.create`, which replaces the system prompt
-for one turn. `test/server/realtime.test.js` is the file that fails if that
-stops being true.
+What the page may send upstream is an allowlist: audio frames, a typed message,
+a request to respond, a cancel. Two things are dropped as persona overrides — a
+`session.update` from the browser, and the `instructions` field on a
+`response.create`. `test/server/realtime.test.js` covers that.
 
 ## Audio
 
-WebRTC would have handled this. A WebSocket carrying base64 PCM does not, so
-both directions are the client's problem.
+A WebSocket carrying base64 PCM leaves both directions to the client.
 
 **Up:** an `AudioWorklet` (`public/pcm-worklet.js`) takes the mic at whatever
-rate the hardware felt like, resamples to 24 kHz with linear interpolation, and
-posts 20 ms PCM16 frames. The `sampleRate` option on `AudioContext` is a hint —
-some browsers hand back the device rate, and a session that declares 24 kHz
-while sending 48 sounds like a chipmunk — so the conversion is done rather than
-requested.
+rate the hardware gives, resamples to 24 kHz with linear interpolation, and
+posts 20 ms PCM16 frames. The `sampleRate` option on `AudioContext` is only a
+hint, so the conversion is done rather than requested.
 
-**Down:** chunks arrive *faster than real time* — the model produces ten seconds
-of speech in two — so playback can't be "play each as it lands" without
-overlapping. Each chunk is booked against a cursor running ahead of the clock.
-That cursor is also what makes barge-in work: interrupting means dropping
-everything booked but not yet heard, which is most of the answer.
+**Down:** chunks arrive faster than real time, so each is booked against a
+cursor running ahead of the clock rather than played as it lands. That cursor is
+also what makes barge-in work — interrupting drops everything booked but not yet
+heard.
 
-Turn-taking is server-side VAD, so speaking over Rock stops him generating;
-`input_audio_buffer.speech_started` is what tells the page to drop its queue. A
-new `response.created` arriving while audio is still playing flushes it too, as
-a backstop for a turn cut short without notice. `Escape` cancels for the typed
-path.
+Turn-taking is server-side VAD. `input_audio_buffer.speech_started` tells the
+page to drop its queue; a `response.created` arriving while audio is still
+playing flushes it too, as a backstop. `Escape` cancels for the typed path.
 
-The worklet lives in `public/` rather than being imported. Vite inlines assets
-under its size limit as `data:text/javascript` URLs, and `addModule()` rejects
-those on Safari and under any CSP that doesn't allow `data:` — it works in dev
-and breaks in production, silently.
+The worklet lives in `public/` rather than being imported, because Vite inlines
+small assets as `data:text/javascript` URLs and `addModule()` rejects those on
+Safari and under any CSP that disallows `data:`.
 
 ## Tools
 
 `web_search` and `x_search` are on by default. Both execute inside xAI, so
-there is nothing to implement here and no second credential to hold — they cost
-a flag in `.env`. Rock is told not to narrate a search, so the only sign one is
-running is the label under the status chip.
+there's nothing to implement here and no second credential to hold. Rock is told
+not to narrate a search; the only sign one is running is the label under the
+status chip.
 
-Remote **MCP** servers go in `XAI_MCP_SERVERS` as a JSON array, or in `mcp.json`
-(gitignored), and are executed by xAI as well:
+Remote MCP servers go in `XAI_MCP_SERVERS` as a JSON array, or in `mcp.json`
+(gitignored), and are also executed by xAI:
 
 ```json
 [
@@ -150,16 +163,33 @@ Remote **MCP** servers go in `XAI_MCP_SERVERS` as a JSON array, or in `mcp.json`
 ]
 ```
 
-Credentials in that file never leave the Node process. `/api/config` reports
-tool *labels* only, which is what the strip under the composer renders.
+Credentials there never leave the Node process — `/api/config` reports tool
+labels only.
 
-Client-side function tools are the one kind not wired up: `session.tools` would
-take them, but they need a `function_call_output` path back through the proxy's
-allowlist, and nothing here has wanted one yet.
+Client-side function tools aren't wired up. `session.tools` would take them, but
+they need a `function_call_output` path back through the proxy's allowlist.
+
+## States
+
+`idle` · `listening` · `thinking` · `speaking` — each a set of targets for
+tremor, lean, sway, sway speed and whether the rock paces. It eases between
+them, so transitions read as a change of mood rather than a cut.
+
+The call maps onto them directly: `listening` from `speech_started` and between
+turns, `thinking` from `speech_stopped` until the first audio frame, `speaking`
+while there is audio booked, `idle` when there is no call.
+
+A fifth mood, `angry`, has no conversational state. It's reached by interrupting
+him, decays over a couple of seconds, and blends over whatever he was doing.
+
+Every visible movement is a damped spring reacting to an impulse rather than a
+sine wave. While he talks, the impulses come from onsets in the audio envelope,
+so the squash lands on consonants.
 
 ## Layout
 
 ```
+Dockerfile              Build the client, then serve it from src/server
 index.html              Markup only — Vite's entry
 public/
   pcm-worklet.js        Mic → 24 kHz PCM16, on the audio thread
@@ -182,7 +212,7 @@ src/
       metering.js         An analyser → one 0..1 number per frame
       emitter.js
       constants.js        The wire format, shared with the server
-    ui/                 What you read and what you press
+    ui/
       hud.js              Status chip, transcript, caption, tool label
       controls.js         Mic, text field, send, pickers
       viewport.js         Keeps the composer above the on-screen keyboard
@@ -198,34 +228,13 @@ src/
     config.js           The environment, resolved once
     static.js           Hosting for dist/ — production only
 test/                   node:test, against a stub xAI socket
+.github/workflows/      CI (lint, tests, build smoke test) and the Docker publish
 ```
 
-`src/client/boulder/` is a single-file prototype (`boulder-buddy.html`) split
-into modules; the original is in the first commit if you want to see where it
-started. `src/client/vendor/three-d-stage.js` is a copied starter component
-with two local changes, listed at the top of the file — re-copying it drops
-them.
-
-## States
-
-`idle` · `listening` · `thinking` · `speaking` — each a set of targets for
-tremor, lean, sway, sway speed and whether the rock paces. It eases between
-them, so transitions read as the same creature changing mood rather than a cut.
-
-The call maps onto them directly: `listening` from `speech_started` and between
-turns, `thinking` from `speech_stopped` until the first audio frame, `speaking`
-while there is audio booked, `idle` when there is no call.
-
-There is a fifth mood, `angry`, that no conversational state maps to. It is
-reached by interrupting him, decays over a couple of seconds, and blends over
-whatever he was doing rather than replacing it.
-
-Nothing here is a sine wave dressed up as motion. Every visible movement is a
-damped spring reacting to an impulse — the rock lands, and the landing shoves
-it. Stiff springs and heavy damping are what make it read as several tons
-instead of a bouncing ball. While he talks, the shoves come from onsets in the
-audio envelope, so the squash lands on consonants and it looks like it is
-forming words.
+`src/client/boulder/` started as a single-file prototype (`boulder-buddy.html`),
+still in the first commit. `src/client/vendor/three-d-stage.js` is a copied
+starter component with two local changes, listed at the top of the file —
+re-copying it drops them.
 
 ## The transport seam
 
@@ -246,20 +255,20 @@ forming words.
 'error'        { message }
 ```
 
-Both transcript events carry the whole turn rather than an increment. That is
-an xAI divergence worth knowing about: it renames OpenAI's
-`input_audio_transcription.delta` to `.updated` and makes it *cumulative*, so
-appending it gives you "hello hello there hello there rock". `events.js`
-handles the two shapes apart — `.delta` appends, `.updated` replaces.
+Both transcript events carry the whole turn rather than an increment. xAI
+renames OpenAI's `input_audio_transcription.delta` to `.updated` and makes it
+cumulative, so appending it gives you "hello hello there hello there rock".
+`events.js` handles the two shapes apart — `.delta` appends, `.updated`
+replaces.
 
-The boulder takes audio-shaped input, which is the whole point of the split:
+The boulder takes audio-shaped input:
 
 ```js
 boulder.setState('speaking')  // idle | listening | thinking | speaking
 boulder.setLevel(0.62)        // sustained amplitude 0..1, sampled per frame
 boulder.pulse(0.4)            // transient impulse 0..1, one per discrete event
-boulder.anger(0.9)            // it has been interrupted and it is not pleased
+boulder.anger(0.9)            // it has been interrupted
 ```
 
 Swapping providers means writing a different `createVoiceSession()` with that
-surface. `main.js` and the boulder do not change.
+surface. `main.js` and the boulder don't change.
