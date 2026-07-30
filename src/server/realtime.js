@@ -13,6 +13,13 @@ const ALLOWED = new Set([
 
 const MAX_FRAME = 1 << 20;
 
+/**
+ * The page's own frame, handled here and never forwarded: it carries the
+ * memories held in browser storage, which the proxy folds into the session
+ * instructions. The persona itself stays server-side and unreachable.
+ */
+export const MEMORY_EVENT = 'session.memory';
+
 function safeCloseCode(code) {
   return code === 1000 || (code >= 3000 && code <= 4999) ? code : 1011;
 }
@@ -27,7 +34,12 @@ export function sanitize(event) {
 
   if (event.type === 'conversation.item.create') {
     const item = event.item;
-    if (!item || item.type !== 'message' || item.role !== 'user') return null;
+    if (!item) return null;
+    if (item.type === 'function_call_output') {
+      const ok = typeof item.call_id === 'string' && typeof item.output === 'string';
+      return ok ? event : null;
+    }
+    if (item.type !== 'message' || item.role !== 'user') return null;
   }
 
   return event;
@@ -61,13 +73,17 @@ export function createRealtimeProxy(config) {
       headers: { authorization: `Bearer ${config.apiKey}` },
     });
 
+    const tools = buildTools(config.tools);
     let pending = [];
+    let memories = [];
+
+    const update = () => JSON.stringify({
+      type: 'session.update',
+      session: sessionConfig({ voice, tools, memories }),
+    });
 
     upstream.on('open', () => {
-      upstream.send(JSON.stringify({
-        type: 'session.update',
-        session: sessionConfig({ voice, tools: buildTools(config.tools) }),
-      }));
+      upstream.send(update());
       for (const frame of pending) upstream.send(frame);
       pending = [];
       client.send(JSON.stringify({ type: 'proxy.ready', model, voice }));
@@ -90,12 +106,21 @@ export function createRealtimeProxy(config) {
     client.on('message', (data, isBinary) => {
       if (isBinary || data.length > MAX_FRAME) return;
 
-      let event;
+      let incoming;
       try {
-        event = sanitize(JSON.parse(data.toString()));
+        incoming = JSON.parse(data.toString());
       } catch {
         return;
       }
+
+      if (incoming?.type === MEMORY_EVENT) {
+        if (!config.tools.memory) return;
+        memories = Array.isArray(incoming.memories) ? incoming.memories : [];
+        if (upstream.readyState === WebSocket.OPEN) upstream.send(update());
+        return;
+      }
+
+      const event = sanitize(incoming);
       if (!event) return;
 
       const frame = JSON.stringify(event);

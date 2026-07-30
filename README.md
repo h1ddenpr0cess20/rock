@@ -5,7 +5,8 @@ impressed by your question and answers it correctly anyway. It runs on an xAI
 Grok speech-to-speech session, and its squash, stomp and sway are driven by the
 live audio, so it moves with whichever of you is talking.
 
-It can search the web and X, and call remote MCP servers.
+It can search the web and X, and call remote MCP servers. It also remembers
+what you tell it to, between calls.
 
 ## Run
 
@@ -50,6 +51,7 @@ Both `npm run dev` and `npm start` read `.env`.
 | `XAI_REALTIME_URL` | xAI | Points the proxy at a gateway or a stub |
 | `XAI_WEB_SEARCH` | `true` | |
 | `XAI_X_SEARCH` | `true` | |
+| `MEMORY` | `true` | The `remember` and `forget` tools, and the memory block in the prompt |
 | `XAI_MCP_SERVERS` | — | JSON array of remote MCP servers, or put it in `mcp.json` |
 | `PORT` | `5173` | |
 | `SSL_KEY`, `SSL_CERT` | — | Paths to a real certificate; `npm start` then serves HTTPS |
@@ -121,9 +123,15 @@ sends `session.update` — persona, voice, turn detection, audio format, tools �
 before forwarding anything the page queued.
 
 What the page may send upstream is an allowlist: audio frames, a typed message,
-a request to respond, a cancel. Two things are dropped as persona overrides — a
-`session.update` from the browser, and the `instructions` field on a
-`response.create`. `test/server/realtime.test.js` covers that.
+a request to respond, a cancel, and the output of a function call it ran itself.
+Two things are dropped as persona overrides — a `session.update` from the
+browser, and the `instructions` field on a `response.create`.
+`test/server/realtime.test.js` covers that.
+
+One frame type never reaches xAI at all: `session.memory`, which the page sends
+with what it has stored. The proxy folds those lines into the instructions and
+re-sends its own `session.update`, so the persona stays here and the memories
+stay in the browser.
 
 ## Audio
 
@@ -197,8 +205,35 @@ Remote MCP servers go in `XAI_MCP_SERVERS` as a JSON array, or in `mcp.json`
 Credentials there never leave the Node process — `/api/config` reports tool
 labels only.
 
-Client-side function tools aren't wired up. `session.tools` would take them, but
-they need a `function_call_output` path back through the proxy's allowlist.
+`remember` and `forget` are the two tools that run here rather than at xAI —
+see below.
+
+## Memory
+
+The log is a record. Memory is the part Rock actually carries into the next
+call: a short list of details, kept in `localStorage` under `rock.memory.v1`
+and appended to the persona as a labelled block when the call opens.
+
+Ask him to remember something and he calls `remember`; ask him to forget it and
+he calls `forget`, which drops every stored line matching the keyword. Both run
+in the page against browser storage, and the result goes back up as a
+`function_call_output`. The `memory` button opens the list, where you can add a
+line by hand, drop one, switch the whole thing off, or clear it.
+
+The list is capped at 25 lines, each flattened to one line and cut at 600
+characters. Past the cap the oldest goes. Editing the list during a call
+re-sends `session.memory`, so a memory added mid-conversation is live in it;
+switching memory off empties the block on the next `session.update` without
+deleting anything.
+
+Nothing is uploaded and nothing is shared between browsers — the proxy holds no
+memory of its own, and `MEMORY=false` removes both the tools and the prompt
+block entirely.
+
+Memories are text the person typed or dictated, so they land inside the prompt.
+They are flattened onto one line each and capped in `persona.js` before they get
+there, which keeps a memory from opening a new instruction paragraph, and the
+persona is always first in the string.
 
 ## States
 
@@ -230,6 +265,7 @@ src/
     styles.css          The HUD around the boulder
     api.js              /api/config, as a function
     history.js          Past conversations, in localStorage
+    memory.js           What he remembers between calls, in localStorage
     boulder/            Geometry and animation. Knows nothing about transports
       index.js            The controller and the per-frame loop
       geometry.js         Noise, cutting planes, vertex colours
@@ -241,12 +277,14 @@ src/
       audio.js            Capture and playback over Web Audio
       codec.js            PCM16 ↔ base64
       events.js           xAI server events → this vocabulary
+      tools.js            remember/forget, run in the page
       metering.js         An analyser → one 0..1 number per frame
       emitter.js
       constants.js        The wire format, shared with the server
     ui/
       hud.js              Status chip, transcript, caption, tool label
       history.js          The log panel behind the `log` button
+      memory.js           The memory panel behind the `memory` button
       controls.js         Mic, text field, send, pickers
       viewport.js         Keeps the composer above the on-screen keyboard
       stage.js            Strips the starter component's own chrome
@@ -260,6 +298,7 @@ src/
     persona.js          Who Rock is, and the session config
     config.js           The environment, resolved once
     static.js           Hosting for dist/ — production only
+docs/                   Policies: the output disclaimer, and what this is not
 test/                   node:test, against a stub xAI socket
 .github/workflows/      CI (lint, tests, build smoke test) and the Docker publish
 ```
@@ -271,8 +310,9 @@ re-copying it drops them.
 
 ## The transport seam
 
-`session/index.js` exposes `on`, `start`, `stop`, `send`, `cancel`, `messages`,
-`connected`, `busy`, `stale`, `state`, `muted`, `model`, `voice` — and emits:
+`session/index.js` exposes `on`, `start`, `stop`, `send`, `cancel`, `syncMemory`,
+`messages`, `connected`, `busy`, `stale`, `state`, `muted`, `model`, `voice` —
+and emits:
 
 ```
 'state'        listening | thinking | speaking | idle
@@ -281,10 +321,11 @@ re-copying it drops them.
 'level'        0..1 sustained amplitude, per frame
 'pulse'        0..1 transient, one per discrete event
 'interrupted'  the person talked over Rock
-'tool'         a label while a server-side tool works, or null
+'tool'         a label while a tool works, or null
 'message'      a completed turn, { role, content } — what the log stores
 'busy'         whether a response is in flight
 'ready'        { model, voice } the proxy actually used
+'memory'       the result of a remember/forget the model just called
 'done'         { usage }
 'error'        { message }
 ```
@@ -306,3 +347,14 @@ boulder.anger(0.9)            // it has been interrupted
 
 Swapping providers means writing a different `createVoiceSession()` with that
 surface. `main.js` and the boulder don't change.
+
+## Policies
+
+Two documents, both worth the two minutes:
+
+- [**AI Output Disclaimer**](docs/ai-output-disclaimer.md) — what the model says
+  is the model's, not the author's, plus the risks that are specific to a live
+  microphone and speech you hear before anyone can check it.
+- [**Not a Companion**](docs/not-a-companion.md) — Rock is a toy and a demo.
+  It is not a friend, a therapist, or a partner, and the project will not grow in
+  that direction.

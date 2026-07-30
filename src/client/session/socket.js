@@ -10,7 +10,7 @@ function socketUrl({ voice, model }) {
   return url;
 }
 
-export function connect({ voice, model, onEvent, onClose }) {
+export function connect({ voice, model, memories = [], onEvent, onClose }) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(socketUrl({ voice, model }));
     let settled = false;
@@ -26,6 +26,7 @@ export function connect({ voice, model, onEvent, onClose }) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (memories.length) ws.send(JSON.stringify({ type: 'session.memory', memories }));
       resolve({
         get open() {
           return ws.readyState === WebSocket.OPEN;

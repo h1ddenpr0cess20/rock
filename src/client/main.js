@@ -4,9 +4,11 @@ import './vendor/three-d-stage.js';
 import { fetchConfig } from './api.js';
 import { createBoulder } from './boulder/index.js';
 import { createHistory } from './history.js';
+import { createMemory } from './memory.js';
 import { createVoiceSession } from './session/index.js';
 import { createControls } from './ui/controls.js';
 import { createHistoryPanel } from './ui/history.js';
+import { createMemoryPanel } from './ui/memory.js';
 import { createHud } from './ui/hud.js';
 import { stripStageChrome } from './ui/stage.js';
 import { trackKeyboardInset } from './ui/viewport.js';
@@ -16,10 +18,12 @@ const stage = stripStageChrome(document.querySelector('three-d-stage'));
 const { THREE } = await stage.ready;
 
 const boulder = createBoulder({ stage, THREE });
-const session = createVoiceSession();
+const memory = createMemory();
+const session = createVoiceSession({ memory });
 const hud = createHud();
 const history = createHistory();
 const historyPanel = createHistoryPanel({ history, onNew: startFresh });
+const memoryPanel = createMemoryPanel({ memory, onChange: () => session.syncMemory() });
 
 trackKeyboardInset();
 
@@ -58,6 +62,7 @@ const controls = createControls({
   },
 
   onCancel() {
+    if (memoryPanel.isOpen) return memoryPanel.close();
     if (historyPanel.isOpen) return historyPanel.close();
     session.cancel();
   },

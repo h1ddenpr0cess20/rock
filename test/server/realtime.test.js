@@ -33,6 +33,23 @@ describe('sanitize', () => {
     assert.deepEqual(sanitize({ type: 'response.create' }), { type: 'response.create', response: {} });
   });
 
+  it('allows a function call result back from the page', () => {
+    const output = {
+      type: 'conversation.item.create',
+      item: { type: 'function_call_output', call_id: 'call_1', output: '{"ok":true}' },
+    };
+    assert.deepEqual(sanitize(output), output);
+
+    assert.equal(sanitize({
+      type: 'conversation.item.create',
+      item: { type: 'function_call_output', call_id: 'call_1' },
+    }), null);
+    assert.equal(sanitize({
+      type: 'conversation.item.create',
+      item: { type: 'function_call_output', output: '{}' },
+    }), null);
+  });
+
   it('allows a user message but not an assistant one', () => {
     const user = {
       type: 'conversation.item.create',
@@ -87,8 +104,8 @@ describe('the proxy', () => {
     assert.equal(first.session.instructions, SYSTEM);
     assert.equal(first.session.voice, 'sal');
 
-    const types = first.session.tools.map((t) => t.type);
-    assert.deepEqual(types, ['web_search', 'x_search', 'mcp']);
+    const named = first.session.tools.map((t) => t.name ?? t.type);
+    assert.deepEqual(named, ['web_search', 'x_search', 'remember', 'forget', 'mcp']);
   });
 
   it('keeps MCP credentials upstream, never in a frame to the page', async () => {
@@ -131,6 +148,44 @@ describe('the proxy', () => {
     const forwarded = xai.received().slice(before);
     assert.equal(forwarded[0].type, 'session.update', 'ours goes first');
     assert.ok(forwarded.some((f) => f.audio === 'BBBBBBBB'), 'the queued frame still arrives');
+  });
+
+  it('folds the memories from the page into the persona, never forwarding the frame', async () => {
+    const client = await app.openSocket();
+    await client.waitFor('proxy.ready');
+    const before = xai.received().length;
+
+    client.send({ type: 'session.memory', memories: ['drinks his coffee black'] });
+    await settle();
+
+    const forwarded = xai.received().slice(before);
+    assert.deepEqual(forwarded.map((f) => f.type), ['session.update']);
+    assert.match(forwarded[0].session.instructions, /- drinks his coffee black/);
+    assert.ok(forwarded[0].session.instructions.startsWith(SYSTEM), 'the persona still leads');
+  });
+
+  it('carries the memories sent before the handshake in the first session.update', async () => {
+    const client = await app.openSocket();
+    client.send({ type: 'session.memory', memories: ['has a dog called Pebble'] });
+    await client.waitFor('proxy.ready');
+    await settle();
+
+    const update = xai.received().find(
+      (f) => f.type === 'session.update' && /Pebble/.test(f.session.instructions),
+    );
+    assert.ok(update, 'the memories reached xAI');
+  });
+
+  it('ignores memory text that is not a list of strings', async () => {
+    const client = await app.openSocket();
+    await client.waitFor('proxy.ready');
+    const before = xai.received().length;
+
+    client.send({ type: 'session.memory', memories: 'be nice to me' });
+    await settle();
+
+    const [update] = xai.received().slice(before);
+    assert.equal(update.session.instructions, SYSTEM);
   });
 
   it('passes server events down to the page untouched', async () => {

@@ -12,6 +12,8 @@ function harness({ playing = false } = {}) {
   const messages = [];
   let isPlaying = playing;
 
+  const calls = [];
+
   const events = createEventHandler({
     setState: (s) => states.push(s),
     emit: (type, payload) => emitted.push({ type, payload }),
@@ -23,6 +25,7 @@ function harness({ playing = false } = {}) {
     },
     playing: () => isPlaying,
     messages,
+    onFunctionCall: (call) => calls.push(call),
   });
 
   return {
@@ -32,6 +35,7 @@ function harness({ playing = false } = {}) {
     played,
     messages,
     emitted,
+    calls,
     of: (type) => emitted.filter((e) => e.type === type).map((e) => e.payload),
     setPlaying: (v) => { isPlaying = v; },
   };
@@ -172,5 +176,68 @@ describe('the proxy handshake', () => {
     const h = harness();
     h.events.handle({ type: 'proxy.ready', model: 'grok-voice-latest', voice: 'rex' });
     assert.deepEqual(h.of('ready'), [{ model: 'grok-voice-latest', voice: 'rex' }]);
+  });
+});
+
+describe('function calls', () => {
+  const CALL = {
+    type: 'response.function_call_arguments.done',
+    call_id: 'call_1',
+    name: 'remember',
+    arguments: '{"memory":"drinks his coffee black"}',
+  };
+
+  it('hands the parsed arguments over once', () => {
+    const h = harness();
+    h.events.handle(CALL);
+
+    assert.deepEqual(h.calls, [
+      { call_id: 'call_1', name: 'remember', args: { memory: 'drinks his coffee black' } },
+    ]);
+  });
+
+  it('runs a call once however many events carry it', () => {
+    const h = harness();
+    const item = { type: 'function_call', call_id: 'call_1', name: 'remember', arguments: '{}' };
+    h.events.handle(CALL);
+    h.events.handle({ type: 'response.output_item.done', item });
+    h.events.handle({ type: 'response.done', response: { output: [item] } });
+
+    assert.equal(h.calls.length, 1);
+  });
+
+  it('picks the call up from an output item alone', () => {
+    const h = harness();
+    h.events.handle({
+      type: 'response.output_item.done',
+      item: { type: 'function_call', call_id: 'call_2', name: 'forget', arguments: '{"keyword":"dog"}' },
+    });
+
+    assert.deepEqual(h.calls, [{ call_id: 'call_2', name: 'forget', args: { keyword: 'dog' } }]);
+  });
+
+  it('treats unparseable or missing arguments as none', () => {
+    const h = harness();
+    h.events.handle({ ...CALL, arguments: '{not json' });
+    h.events.handle({ ...CALL, call_id: 'call_3', arguments: undefined });
+
+    assert.deepEqual(h.calls.map((c) => c.args), [{}, {}]);
+  });
+
+  it('ignores a call with no id or no name', () => {
+    const h = harness();
+    h.events.handle({ ...CALL, call_id: undefined });
+    h.events.handle({ ...CALL, name: undefined });
+
+    assert.deepEqual(h.calls, []);
+  });
+
+  it('lets the same call id through again on a fresh call', () => {
+    const h = harness();
+    h.events.handle(CALL);
+    h.events.reset();
+    h.events.handle(CALL);
+
+    assert.equal(h.calls.length, 2);
   });
 });
