@@ -252,11 +252,15 @@ three-d-stage {
 }
 #tools.visible { opacity: 1; }
 
-#history-toggle {
+#tabs {
   position: fixed;
   top: calc(env(safe-area-inset-top) + 10px);
   right: calc(env(safe-area-inset-right) + var(--gutter));
   z-index: 7;
+  display: flex;
+  gap: 8px;
+}
+#tabs button {
   appearance: none;
   cursor: pointer;
   padding: 10px 13px;
@@ -266,9 +270,10 @@ three-d-stage {
   color: rgba(232, 223, 210, .62);
   transition: border-color .2s;
 }
-#history-toggle:hover { color: rgba(232, 223, 210, .9); border-color: rgba(232, 223, 210, .28); }
+#tabs button:hover { color: rgba(232, 223, 210, .9); border-color: rgba(232, 223, 210, .28); }
 
-#history {
+#history,
+#memory {
   position: fixed;
   z-index: 6;
   left: 50%;
@@ -283,9 +288,11 @@ three-d-stage {
   background: rgba(12, 11, 10, .96);
   border: 1px solid rgba(232, 223, 210, .14);
 }
-#history[hidden] { display: none; }
+#history[hidden],
+#memory[hidden] { display: none; }
 
-#history-head {
+#history-head,
+#memory-head {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -293,8 +300,11 @@ three-d-stage {
   color: rgba(232, 223, 210, .34);
   border-bottom: 1px solid rgba(232, 223, 210, .1);
 }
-#history-head .chip:first-child { flex: 1; }
-#history-head button {
+#history-head .chip:first-child,
+#memory-head .chip:first-child { flex: 1; }
+#history-head button,
+#memory-head button,
+#memory-add button {
   appearance: none;
   cursor: pointer;
   padding: 7px 10px;
@@ -304,9 +314,13 @@ three-d-stage {
   color: rgba(232, 223, 210, .6);
   transition: background .2s, color .2s;
 }
-#history-head button:hover { background: rgba(232, 223, 210, .14); color: var(--ink); }
-#history-head button:disabled { opacity: .35; cursor: default; }
-#history-head button:disabled:hover { background: rgba(232, 223, 210, .06); color: rgba(232, 223, 210, .6); }
+#history-head button:hover,
+#memory-head button:hover,
+#memory-add button:hover { background: rgba(232, 223, 210, .14); color: var(--ink); }
+#history-head button:disabled,
+#memory-head button:disabled { opacity: .35; cursor: default; }
+#history-head button:disabled:hover,
+#memory-head button:disabled:hover { background: rgba(232, 223, 210, .06); color: rgba(232, 223, 210, .6); }
 #history-head #history-new {
   background: var(--ink);
   color: var(--void);
@@ -322,13 +336,16 @@ three-d-stage {
   color: color-mix(in srgb, var(--ink) 55%, transparent);
   opacity: 1;
 }
-#history-clear.armed { color: var(--error); }
-#history :focus-visible {
+#history-clear.armed,
+#memory-clear.armed { color: var(--error); }
+#history :focus-visible,
+#memory :focus-visible {
   outline: 2px solid rgba(232, 223, 210, .55);
   outline-offset: 2px;
 }
 
-#history-log {
+#history-log,
+#memory-list {
   flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -364,12 +381,66 @@ three-d-stage {
 }
 #history .turn[data-role="assistant"] .who { color: var(--thinking); }
 
-#history .empty {
+#history .empty,
+#memory .empty {
   margin: 18px 0;
   font: 400 14px/1.6 var(--sans);
   color: rgba(232, 223, 210, .34);
   text-align: center;
 }
+
+#memory-list { margin: 0; list-style: none; }
+
+#memory-switch[aria-pressed="false"] { color: rgba(232, 223, 210, .3); }
+#memory.off #memory-list { opacity: .4; }
+
+.memory-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 0;
+}
+.memory-item + .memory-item { border-top: 1px solid rgba(232, 223, 210, .08); }
+.memory-text {
+  flex: 1;
+  font: 400 14px/1.6 var(--sans);
+  color: rgba(232, 223, 210, .9);
+  text-wrap: pretty;
+  overflow-wrap: break-word;
+}
+.memory-item .meta { color: rgba(232, 223, 210, .22); white-space: nowrap; }
+.memory-item button {
+  appearance: none;
+  cursor: pointer;
+  flex: none;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: none;
+  border: 0;
+  color: rgba(232, 223, 210, .3);
+  transition: background .2s, color .2s;
+}
+.memory-item button:hover { background: rgba(232, 223, 210, .08); color: var(--error); }
+
+#memory-add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(232, 223, 210, .1);
+}
+#memory-input {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  font: 400 15px/1.4 var(--sans);
+}
+#memory-input::placeholder { color: rgba(232, 223, 210, .3); }
+#memory-input:focus { outline: none; }
+#memory-input:disabled { cursor: default; opacity: .5; }
 
 @media (max-width: 640px) {
   :root { --gutter: 14px; }
@@ -391,20 +462,24 @@ three-d-stage {
     min-width: 0;
     padding: 11px 24px 11px 12px;
   }
-  #history {
+  #history,
+  #memory {
     top: calc(env(safe-area-inset-top) + 50px);
     bottom: calc(env(safe-area-inset-bottom) + 14px);
   }
-  #history-log { padding: 4px 14px 16px; }
+  #history-log,
+  #memory-list { padding: 4px 14px 16px; }
 
   #caption { font-size: 15px; max-height: 28dvh; }
 }
 
 @media (pointer: coarse) {
   #mic, #send { width: 44px; height: 44px; }
-  #history-toggle { padding: 13px 15px; }
-  #history-head button { padding: 12px 14px; }
-  #history-toggle:hover {
+  #tabs button { padding: 13px 15px; }
+  #history-head button,
+  #memory-head button,
+  #memory-add button { padding: 12px 14px; }
+  #tabs button:hover {
     color: rgba(232, 223, 210, .62);
     border-color: rgba(232, 223, 210, .14);
   }
@@ -414,7 +489,7 @@ three-d-stage {
 
 @media (prefers-reduced-motion: reduce) {
   #you, #caption, #status, #tool, #tools, #composer, #mic, #send, #model, #voice,
-  #history-toggle, #history-head button {
+  #tabs button, #history-head button, #memory-head button, #memory-add button {
     transition-duration: .01ms;
   }
 }

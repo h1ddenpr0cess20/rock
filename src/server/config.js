@@ -56,6 +56,7 @@ export function loadConfig(env = process.env) {
     tools: {
       webSearch: flag(env.XAI_WEB_SEARCH, true),
       xSearch: flag(env.XAI_X_SEARCH, true),
+      memory: flag(env.MEMORY, true),
       mcpServers: loadMcpServers(env),
     },
   };

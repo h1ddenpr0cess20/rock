@@ -19,20 +19,78 @@ You still actually help. Underneath the attitude the answer is correct, current 
 
 You can search the web and X for anything current. Use them when the question needs facts you'd otherwise be guessing at. Don't narrate the search or say you're looking something up — just come back with the answer like you knew it and resent being asked.`;
 
-export function buildTools({ webSearch, xSearch, mcpServers } = {}) {
+/** How many memories ride along in the prompt, and how long each may be. */
+export const MEMORY_LIMIT = 50;
+export const MEMORY_LENGTH = 600;
+
+/** The two function tools the page answers itself, against browser storage. */
+export const MEMORY_TOOLS = Object.freeze([
+  {
+    type: 'function',
+    name: 'remember',
+    description: 'Store one short detail about the person you are talking to so it survives to the next call. Use it when they ask you to remember something, or plainly want you to. A few words to a sentence. Do not narrate it and do not overuse it.',
+    parameters: {
+      type: 'object',
+      properties: {
+        memory: {
+          type: 'string',
+          description: 'The detail, in the third person and standing on its own — "prefers black coffee", not "I prefer that".',
+        },
+      },
+      required: ['memory'],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: 'function',
+    name: 'forget',
+    description: 'Drop stored memories matching a keyword. Use it when they ask you to forget something.',
+    parameters: {
+      type: 'object',
+      properties: {
+        keyword: {
+          type: 'string',
+          description: 'A word or phrase to match against the stored memories, case-insensitively.',
+        },
+      },
+      required: ['keyword'],
+      additionalProperties: false,
+    },
+  },
+]);
+
+export function buildTools({ webSearch, xSearch, memory, mcpServers } = {}) {
   const tools = [];
   if (webSearch) tools.push({ type: 'web_search' });
   if (xSearch) tools.push({ type: 'x_search' });
+  if (memory) tools.push(...MEMORY_TOOLS);
   for (const server of mcpServers ?? []) tools.push({ type: 'mcp', ...server });
   return tools;
 }
 
+/**
+ * The memory addendum to the system prompt. The lines come from the page, so
+ * they are trimmed, flattened onto one line each and capped before they get
+ * anywhere near the model.
+ */
+export function memoryBlock(memories) {
+  const lines = (Array.isArray(memories) ? memories : [])
+    .filter((line) => typeof line === 'string')
+    .map((line) => line.replace(/\s+/g, ' ').trim().slice(0, MEMORY_LENGTH))
+    .filter(Boolean)
+    .slice(-MEMORY_LIMIT);
+
+  if (!lines.length) return '';
+
+  return `\n\nThings you have been told to remember about the person you are talking to. Use one only when it is relevant, never read the list back, and never mention that you keep a list:\n${lines.map((line) => `- ${line}`).join('\n')}`;
+}
+
 export const AUDIO_RATE = 24_000;
 
-export function sessionConfig({ voice, tools }) {
+export function sessionConfig({ voice, tools, memories }) {
   return {
     voice,
-    instructions: SYSTEM,
+    instructions: SYSTEM + memoryBlock(memories),
     reasoning: { effort: 'none' },
     turn_detection: {
       type: 'server_vad',

@@ -12,10 +12,20 @@ function toolLabel(type) {
   return null;
 }
 
-export function createEventHandler({ setState, emit, fail, play, flushAudio, playing, messages }) {
+export function createEventHandler({
+  setState,
+  emit,
+  fail,
+  play,
+  flushAudio,
+  playing,
+  messages,
+  onFunctionCall = () => {},
+}) {
   let responding = false;
   let transcript = '';
   let current = null;
+  let called = new Set();
 
   function flush() {
     if (transcript.trim()) record({ role: 'assistant', content: transcript.trim() });
@@ -31,6 +41,26 @@ export function createEventHandler({ setState, emit, fail, play, flushAudio, pla
     if (responding === next) return;
     responding = next;
     emit('busy', next);
+  }
+
+  /**
+   * Runs a function call once. Both the arguments event and the output item
+   * carry the whole call, and which of the two arrives is provider-dependent,
+   * so the call id is the guard against running one twice.
+   */
+  function dispatch(call) {
+    const id = call?.call_id;
+    const name = call?.name;
+    if (!id || !name || called.has(id)) return;
+    called.add(id);
+
+    let args;
+    try {
+      args = call.arguments ? JSON.parse(call.arguments) : {};
+    } catch {
+      args = {};
+    }
+    onFunctionCall({ call_id: id, name, args });
   }
 
   function interrupt() {
@@ -103,9 +133,20 @@ export function createEventHandler({ setState, emit, fail, play, flushAudio, pla
         }
         return;
 
+      case 'response.function_call_arguments.done':
+        dispatch(event);
+        return;
+
+      case 'response.output_item.done':
+        if (event.item?.type === 'function_call') dispatch(event.item);
+        return;
+
       case 'response.done': {
         setResponding(false);
         const response = event.response ?? {};
+        for (const item of response.output ?? []) {
+          if (item?.type === 'function_call') dispatch(item);
+        }
         flush();
         if (response.status === 'failed') {
           fail(response.status_details?.error?.message ?? 'the response failed');
@@ -137,6 +178,7 @@ export function createEventHandler({ setState, emit, fail, play, flushAudio, pla
       setResponding(false);
       transcript = '';
       current = null;
+      called = new Set();
     },
   };
 }

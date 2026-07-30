@@ -14,8 +14,12 @@
 <div id="status" class="chip" data-state="idle">idle</div>
 <div id="tool" class="chip"></div>
 
-<button id="history-toggle" class="chip" type="button" aria-expanded="false"
-        aria-controls="history">log</button>
+<div id="tabs">
+  <button id="memory-toggle" class="chip" type="button" aria-expanded="false"
+          aria-controls="memory">memory</button>
+  <button id="history-toggle" class="chip" type="button" aria-expanded="false"
+          aria-controls="history">log</button>
+</div>
 
 <div id="hud">
   <div id="you"></div>
@@ -56,6 +60,22 @@
     <button id="history-close" class="chip" type="button" aria-label="Close history">close</button>
   </header>
   <div id="history-log"></div>
+</section>
+
+<section id="memory" hidden aria-label="What he remembers">
+  <header id="memory-head">
+    <span class="chip">memory</span>
+    <button id="memory-switch" class="chip" type="button" aria-pressed="true"
+            aria-label="Switch memory on or off">on</button>
+    <button id="memory-clear" class="chip" type="button">clear</button>
+    <button id="memory-close" class="chip" type="button" aria-label="Close memory">close</button>
+  </header>
+  <ul id="memory-list"></ul>
+  <form id="memory-add">
+    <input id="memory-input" type="text" autocomplete="off" maxlength="600"
+           placeholder="Something for him to remember" aria-label="New memory">
+    <button class="chip" type="submit">add</button>
+  </form>
 </section>
 
 <script type="module" src="/src/client/main.js"></script>

@@ -4,6 +4,7 @@ import { createEmitter } from './emitter.js';
 import { createEventHandler } from './events.js';
 import { amplitude, createAnalyser, follow } from './metering.js';
 import { connect } from './socket.js';
+import { createTools, toolLabel } from './tools.js';
 
 const MIC_CONSTRAINTS = {
   audio: {
@@ -21,9 +22,10 @@ function micUnavailable() {
     : 'this browser won’t hand over a microphone — try opening the page in Safari or Chrome';
 }
 
-export function createVoiceSession({ model, voice } = {}) {
+export function createVoiceSession({ model, voice, memory } = {}) {
   const { on, emit } = createEmitter();
   const messages = [];
+  const tools = memory ? createTools({ memory }) : {};
 
   let currentModel = model;
   let currentVoice = voice;
@@ -55,6 +57,31 @@ export function createVoiceSession({ model, voice } = {}) {
     emit('error', { message });
   }
 
+  /**
+   * Answers a function call the model made. The result has to go back as a
+   * `function_call_output` item followed by a fresh `response.create` — without
+   * the second frame the model waits forever on its own tool.
+   */
+  function runTool({ call_id: callId, name, args }) {
+    const tool = tools[name];
+    if (!tool) return;
+
+    emit('tool', toolLabel(name));
+    let output;
+    try {
+      output = tool(args);
+    } catch (err) {
+      output = { ok: false, error: err?.message ?? String(err) };
+    }
+
+    call?.send({
+      type: 'conversation.item.create',
+      item: { type: 'function_call_output', call_id: callId, output: JSON.stringify(output) },
+    });
+    call?.send({ type: 'response.create' });
+    emit('memory', output);
+  }
+
   const events = createEventHandler({
     setState,
     emit,
@@ -63,6 +90,7 @@ export function createVoiceSession({ model, voice } = {}) {
     play: (samples) => player?.enqueue(samples),
     flushAudio: () => player?.flush(),
     playing: () => player?.playing ?? false,
+    onFunctionCall: runTool,
   });
 
   function tick() {
@@ -97,6 +125,7 @@ export function createVoiceSession({ model, voice } = {}) {
       call = await connect({
         voice: currentVoice,
         model: currentModel,
+        memories: memory?.lines() ?? [],
         onEvent: events.handle,
         onClose: (reason) => {
           if (!call) return;
@@ -164,6 +193,11 @@ export function createVoiceSession({ model, voice } = {}) {
     send,
     get messages() {
       return messages;
+    },
+    /** Hands the current memories to a call already in progress. */
+    syncMemory() {
+      if (!memory || !call?.open) return false;
+      return call.send({ type: 'session.memory', memories: memory.lines() });
     },
     get connected() {
       return call?.open ?? false;
