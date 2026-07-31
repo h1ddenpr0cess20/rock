@@ -65,9 +65,12 @@ The last 40 conversations are kept, and the oldest are shed to stay inside a
 hands back a store that throws on write, so the log falls back to memory for the
 life of the page rather than failing the call.
 
-Old turns are not replayed into a new call. That would make the log a memory
-rather than a record, and `session.tools` has no path for it that doesn't also
-let the page rewrite the persona.
+Old turns are not replayed into a new call on their own — that would make the
+log a memory rather than a record. `continue` on an entry in the log is the one
+way past that, and it is asked for, once, per conversation: the stored turns go
+up as a single item in the person's own voice, which is the only item the proxy
+forwards, so picking a conversation back up still cannot reach the persona or
+the instructions.
 
 Memory is capped at 25 lines, each flattened to one line and cut at 600
 characters; past the cap the oldest goes. `remember` and `forget` run in the
@@ -110,7 +113,7 @@ src/
     main.js             The wiring, and nothing else
     styles.css          The HUD around the boulder
     api.js              /api/config, as a function
-    history.js          Past conversations, in localStorage
+    history.js          Past conversations in localStorage, and picking one up
     memory.js           What he remembers between calls, in localStorage
     boulder/            Geometry and animation. Knows nothing about transports
       index.js            The controller and the per-frame loop
@@ -129,9 +132,9 @@ src/
       constants.js        The wire format, shared with the server
     ui/
       hud.js              Status chip, transcript, caption, tool label
-      history.js          The log panel behind the `log` button
+      history.js          The log panel behind `log`, and its `continue`
       memory.js           The memory panel behind the `memory` button
-      controls.js         Mic, text field, send, pickers
+      controls.js         Mic (tap mutes, hold hangs up), field, send, pickers
       viewport.js         Keeps the composer above the on-screen keyboard
       stage.js            Strips the starter component's own chrome
     vendor/
@@ -157,8 +160,8 @@ local changes, listed at the top of the file — re-copying it drops them.
 ## The transport seam
 
 `session/index.js` exposes `on`, `start`, `stop`, `send`, `cancel`, `syncMemory`,
-`messages`, `connected`, `busy`, `stale`, `state`, `muted`, `model`, `voice` —
-and emits:
+`messages`, `context`, `connected`, `busy`, `stale`, `state`, `muted`, `model`,
+`voice` — and emits:
 
 ```
 'state'        listening | thinking | speaking | idle
