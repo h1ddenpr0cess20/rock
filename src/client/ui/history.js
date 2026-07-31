@@ -10,7 +10,7 @@ function when(at, now = Date.now()) {
 
 const WHO = { user: 'you', assistant: 'rock' };
 
-export function createHistoryPanel({ root = document, history, onNew } = {}) {
+export function createHistoryPanel({ root = document, history, onNew, onResume } = {}) {
   const panelEl = root.querySelector('#history');
   const logEl = root.querySelector('#history-log');
   const toggleEl = root.querySelector('#history-toggle');
@@ -28,6 +28,28 @@ export function createHistoryPanel({ root = document, history, onNew } = {}) {
     clearEl.classList.remove('armed');
   }
 
+  /**
+   * Picks an old conversation back up: it becomes the one being talked in, and
+   * what was said in it goes over to the model as context. The one already
+   * being talked in says so instead — there is nothing to pick up.
+   */
+  function resumeEl(conversation) {
+    const live = conversation.id === history.live;
+    const button = doc.createElement('button');
+    button.type = 'button';
+    button.className = 'chip resume';
+    button.disabled = live;
+    button.append(live ? 'live' : 'continue');
+    if (!live) {
+      button.setAttribute('aria-label', `Continue the conversation from ${when(conversation.startedAt)}`);
+      button.addEventListener('click', () => {
+        close();
+        onResume?.(conversation.id);
+      });
+    }
+    return button;
+  }
+
   function conversationEl(conversation) {
     const section = doc.createElement('section');
     section.className = 'entry';
@@ -42,6 +64,7 @@ export function createHistoryPanel({ root = document, history, onNew } = {}) {
       dim.append(meta);
       head.append(dim);
     }
+    head.append(resumeEl(conversation));
     section.append(head);
 
     for (const turn of conversation.messages) {

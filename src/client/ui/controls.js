@@ -1,11 +1,16 @@
+/** How long the mic has to be held down before the tap becomes a hang-up. */
+export const HANG_MS = 650;
+
 export function createControls({
   root = document,
   getStatus,
   onMicToggle,
+  onHangUp,
   onSubmit,
   onModelChange,
   onVoiceChange,
   onCancel,
+  hangMs = HANG_MS,
 }) {
   const composerEl = root.querySelector('#composer');
   const promptEl = root.querySelector('#prompt');
@@ -18,8 +23,10 @@ export function createControls({
     const { connected, busy, muted } = getStatus();
     const live = connected && !muted;
     micEl.setAttribute('aria-pressed', String(live));
-    micEl.setAttribute('aria-label',
-      !connected ? 'Start talking' : live ? 'Turn the microphone off' : 'Turn the microphone on');
+    micEl.setAttribute('aria-label', !connected
+      ? 'Start talking'
+      : `${live ? 'Turn the microphone off' : 'Turn the microphone on'}. Hold to hang up.`);
+    micEl.title = connected ? 'Hold to hang up' : '';
     micEl.classList.toggle('muted', connected && !live);
     promptEl.disabled = !connected;
     promptEl.placeholder = connected ? 'Or type. Slower, but quieter.' : 'Tap the mic. Make it quick.';
@@ -37,7 +44,67 @@ export function createControls({
     }
   }
 
-  micEl.addEventListener('click', toggleMic);
+  /**
+   * One button, two jobs. A tap is the microphone switch it always was; holding
+   * it down hangs the call up, which is the only other thing anyone wants from
+   * it and had nowhere to live. The hold only means anything while a call is up
+   * — with none there is nothing to end, and the tap is what starts one.
+   *
+   * The click that closes a press still arrives after the hold has fired, and
+   * would toggle the mute of a call that is already gone, so it is swallowed.
+   */
+  let holding = 0;
+  let hung = false;
+
+  /** The ring that closes while it is held is timed from here, not the sheet. */
+  micEl.style.setProperty('--hang', `${hangMs}ms`);
+
+  function hold() {
+    hung = false;
+    if (holding || micEl.disabled || 'busy' in micEl.dataset || !getStatus().connected) return;
+    micEl.classList.add('holding');
+    holding = setTimeout(() => {
+      release();
+      hung = true;
+      onHangUp?.();
+      sync();
+    }, hangMs);
+  }
+
+  function release() {
+    clearTimeout(holding);
+    holding = 0;
+    micEl.classList.remove('holding');
+  }
+
+  micEl.addEventListener('click', () => {
+    if (hung) {
+      hung = false;
+      return;
+    }
+    toggleMic();
+  });
+
+  /** The primary button only: a right-click opens a menu, it does not hang up. */
+  micEl.addEventListener('pointerdown', (e) => {
+    if (e.button > 0) return;
+    hold();
+  });
+  micEl.addEventListener('pointerup', release);
+  micEl.addEventListener('pointercancel', release);
+  micEl.addEventListener('pointerleave', release);
+
+  /**
+   * Held down from the keyboard too. Space is the one key that can carry it: a
+   * button pressed with Space clicks on the way up, so a long one is a hold,
+   * where Enter clicks on the way down and is only ever a tap.
+   */
+  micEl.addEventListener('keydown', (e) => {
+    if (e.key !== ' ' || e.repeat) return;
+    hold();
+  });
+  micEl.addEventListener('keyup', release);
+  micEl.addEventListener('blur', release);
 
   composerEl.addEventListener('submit', (e) => {
     e.preventDefault();

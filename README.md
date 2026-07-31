@@ -25,10 +25,15 @@ npm run dev               # → http://localhost:5173
 Click the mic, allow the browser's microphone prompt, and start talking. Talk
 over him and he stops — and stomps.
 
-The mic button is a microphone switch, not a hang-up: turning it off stops what
-you send and leaves the answer playing, and the conversation is still there when
-you turn it back on. It also switches itself off after a minute of silence, and
-the call survives that too.
+Tapping the mic is the microphone switch: turning it off stops what you send and
+leaves the answer playing, and the conversation is still there when you turn it
+back on. It also switches itself off after a minute of silence, and the call
+survives that too. Holding the mic down is the hang-up — a ring closes around it
+while you hold, and the call ends when it lands.
+
+The log keeps every conversation. `continue` on one picks it back up: the call is
+dialled again with those turns handed over as context, and what you say from
+there lands in the same entry rather than a new one.
 
 | Script | |
 |---|---|
