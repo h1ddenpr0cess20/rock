@@ -20,6 +20,55 @@ const MAX_FRAME = 1 << 20;
  */
 export const MEMORY_EVENT = 'session.memory';
 
+/**
+ * The other frame the page keeps to itself: the turns of a conversation it is
+ * picking up out of its own log. The proxy replays them upstream as real
+ * conversation items — one per turn, a user message carrying `input_text` and
+ * an assistant message carrying `output_text`, which is what the realtime API
+ * takes for history — ahead of anything said in the new call.
+ *
+ * It arrives as turns rather than as items so the page never names a role: it
+ * hands over what was said, and the shape going up is this file's to decide.
+ */
+export const HISTORY_EVENT = 'session.history';
+
+/** How much of an earlier conversation the proxy will replay. */
+const HISTORY_TURNS = 40;
+const HISTORY_CHARS = 6000;
+
+/**
+ * What the page sent, cut back to turns this will actually replay. The content
+ * is text the model reads, so it is capped here as well as in the page — the
+ * page is not the only thing that can open this socket.
+ */
+export function priorTurns(turns) {
+  const kept = (Array.isArray(turns) ? turns : [])
+    .filter((turn) => (turn?.role === 'user' || turn?.role === 'assistant')
+      && typeof turn.content === 'string'
+      && turn.content.trim())
+    .map((turn) => ({ role: turn.role, content: turn.content.trim().slice(0, HISTORY_CHARS) }))
+    .slice(-HISTORY_TURNS);
+
+  let total = kept.reduce((sum, turn) => sum + turn.content.length, 0);
+  while (total > HISTORY_CHARS && kept.length > 1) {
+    total -= kept.shift().content.length;
+  }
+
+  return kept;
+}
+
+/** One replayed turn, in the shape its role takes. */
+export function historyItem({ role, content }) {
+  const part = role === 'assistant'
+    ? { type: 'output_text', text: content }
+    : { type: 'input_text', text: content };
+
+  return {
+    type: 'conversation.item.create',
+    item: { type: 'message', role, status: 'completed', content: [part] },
+  };
+}
+
 function safeCloseCode(code) {
   return code === 1000 || (code >= 3000 && code <= 4999) ? code : 1011;
 }
@@ -76,14 +125,25 @@ export function createRealtimeProxy(config) {
     const tools = buildTools(config.tools);
     let pending = [];
     let memories = [];
+    let history = [];
 
     const update = () => JSON.stringify({
       type: 'session.update',
-      session: sessionConfig({ voice, tools, memories }),
+      session: sessionConfig({ voice, tools, memories, resumed: history.length > 0 }),
     });
+
+    /**
+     * An earlier conversation, laid back down as items. It goes after the
+     * session config, which explains what these turns are, and before anything
+     * the page queued while the handshake was still in the air.
+     */
+    const replay = () => {
+      for (const turn of history) upstream.send(JSON.stringify(historyItem(turn)));
+    };
 
     upstream.on('open', () => {
       upstream.send(update());
+      replay();
       for (const frame of pending) upstream.send(frame);
       pending = [];
       client.send(JSON.stringify({ type: 'proxy.ready', model, voice }));
@@ -117,6 +177,21 @@ export function createRealtimeProxy(config) {
         if (!config.tools.memory) return;
         memories = Array.isArray(incoming.memories) ? incoming.memories : [];
         if (upstream.readyState === WebSocket.OPEN) upstream.send(update());
+        return;
+      }
+
+      /**
+       * Picking a conversation up is something the page does as it dials, so
+       * this normally lands while the handshake is still out and `open` does
+       * the replaying. A late one still gets laid down, once.
+       */
+      if (incoming?.type === HISTORY_EVENT) {
+        if (history.length) return;
+        history = priorTurns(incoming.turns);
+        if (history.length && upstream.readyState === WebSocket.OPEN) {
+          upstream.send(update());
+          replay();
+        }
         return;
       }
 
