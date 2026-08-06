@@ -294,7 +294,8 @@ three-d-stage {
 #tabs button:hover { color: rgba(232, 223, 210, .9); border-color: rgba(232, 223, 210, .28); }
 
 #history,
-#memory {
+#memory,
+#toolbox {
   position: fixed;
   z-index: 6;
   left: 50%;
@@ -310,10 +311,12 @@ three-d-stage {
   border: 1px solid rgba(232, 223, 210, .14);
 }
 #history[hidden],
-#memory[hidden] { display: none; }
+#memory[hidden],
+#toolbox[hidden] { display: none; }
 
 #history-head,
-#memory-head {
+#memory-head,
+#toolbox-head {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -322,9 +325,11 @@ three-d-stage {
   border-bottom: 1px solid rgba(232, 223, 210, .1);
 }
 #history-head .chip:first-child,
-#memory-head .chip:first-child { flex: 1; }
+#memory-head .chip:first-child,
+#toolbox-head .chip:first-child { flex: 1; }
 #history-head button,
 #memory-head button,
+#toolbox-head button,
 #memory-add button {
   appearance: none;
   cursor: pointer;
@@ -337,6 +342,7 @@ three-d-stage {
 }
 #history-head button:hover,
 #memory-head button:hover,
+#toolbox-head button:hover,
 #memory-add button:hover { background: rgba(232, 223, 210, .14); color: var(--ink); }
 #history-head button:disabled,
 #memory-head button:disabled { opacity: .35; cursor: default; }
@@ -360,13 +366,15 @@ three-d-stage {
 #history-clear.armed,
 #memory-clear.armed { color: var(--error); }
 #history :focus-visible,
-#memory :focus-visible {
+#memory :focus-visible,
+#toolbox :focus-visible {
   outline: 2px solid rgba(232, 223, 210, .55);
   outline-offset: 2px;
 }
 
 #history-log,
-#memory-list {
+#memory-list,
+#toolbox-list {
   flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -422,17 +430,54 @@ three-d-stage {
 #history .turn[data-role="assistant"] .who { color: var(--thinking); }
 
 #history .empty,
-#memory .empty {
+#memory .empty,
+#toolbox .empty {
   margin: 18px 0;
   font: 400 14px/1.6 var(--sans);
   color: rgba(232, 223, 210, .34);
   text-align: center;
 }
 
-#memory-list { margin: 0; list-style: none; }
+#memory-list,
+#toolbox-list { margin: 0; list-style: none; }
 
 #memory-switch[aria-pressed="false"] { color: rgba(232, 223, 210, .3); }
 #memory.off #memory-list { opacity: .4; }
+
+.tool-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+}
+.tool-item + .tool-item { border-top: 1px solid rgba(232, 223, 210, .08); }
+.tool-name {
+  flex: 1;
+  font: 400 14px/1.6 var(--sans);
+  color: rgba(232, 223, 210, .9);
+  overflow-wrap: break-word;
+}
+.tool-item[data-on="false"] .tool-name { color: rgba(232, 223, 210, .34); }
+.tool-item .switch {
+  appearance: none;
+  cursor: pointer;
+  flex: none;
+  min-width: 44px;
+  padding: 7px 10px;
+  border-radius: 4px;
+  background: rgba(232, 223, 210, .06);
+  border: 0;
+  color: rgba(232, 223, 210, .6);
+  transition: background .2s, color .2s;
+}
+.tool-item .switch:hover { background: rgba(232, 223, 210, .14); color: var(--ink); }
+.tool-item .switch[aria-pressed="false"] { color: rgba(232, 223, 210, .3); }
+
+#toolbox-note {
+  padding: 12px 16px;
+  color: rgba(232, 223, 210, .26);
+  border-top: 1px solid rgba(232, 223, 210, .1);
+}
 
 .memory-item {
   display: flex;
@@ -503,12 +548,14 @@ three-d-stage {
     padding: 11px 24px 11px 12px;
   }
   #history,
-  #memory {
+  #memory,
+  #toolbox {
     top: calc(env(safe-area-inset-top) + 50px);
     bottom: calc(env(safe-area-inset-bottom) + 14px);
   }
   #history-log,
-  #memory-list { padding: 4px 14px 16px; }
+  #memory-list,
+  #toolbox-list { padding: 4px 14px 16px; }
 
   #caption { font-size: 15px; max-height: 28dvh; }
 }
@@ -518,7 +565,9 @@ three-d-stage {
   #tabs button { padding: 13px 15px; }
   #history-head button,
   #memory-head button,
-  #memory-add button { padding: 12px 14px; }
+  #toolbox-head button,
+  #memory-add button,
+  .tool-item .switch { padding: 12px 14px; }
   #tabs button:hover {
     color: rgba(232, 223, 210, .62);
     border-color: rgba(232, 223, 210, .14);
@@ -529,7 +578,8 @@ three-d-stage {
 
 @media (prefers-reduced-motion: reduce) {
   #you, #caption, #status, #tool, #tools, #composer, #mic, #send, #model, #voice,
-  #tabs button, #history-head button, #memory-head button, #memory-add button {
+  #tabs button, #history-head button, #memory-head button, #toolbox-head button,
+  #memory-add button, .tool-item .switch {
     transition-duration: .01ms;
   }
 }

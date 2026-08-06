@@ -75,6 +75,20 @@ Credentials there never leave the Node process — `/api/config` reports tool
 labels only. `remember` and `forget` are the two tools that run in the page
 rather than at xAI.
 
+### Switching one off for a call
+
+`tools` opens a switch for each tool this server offers — web search, X search,
+and one per MCP server. Switching one off takes it out of the call that is up
+right now: the proxy re-declares the tools with `session.update`, so there is no
+redial and nothing to reconnect. The switches live in `localStorage`, so they
+hold across calls and reloads in that browser.
+
+The page can only take away. What exists is the environment's to say, and a tool
+`XAI_WEB_SEARCH=false` never enabled has no switch to find — a browser asking
+for one gets nothing, because the proxy checks every name against its own list
+before it drops anything. Memory is the exception, and only because it already
+had a switch of its own, in the `memory` panel.
+
 ## The log and the memory
 
 `log` opens past conversations, newest first. `new` closes the record and, if a

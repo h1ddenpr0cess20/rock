@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 
 import { buildTools, sessionConfig } from './persona.js';
+import { pickTools, switchedOff } from './tools.js';
 
 const ALLOWED = new Set([
   'input_audio_buffer.append',
@@ -19,6 +20,14 @@ const MAX_FRAME = 1 << 20;
  * instructions. The persona itself stays server-side and unreachable.
  */
 export const MEMORY_EVENT = 'session.memory';
+
+/**
+ * Another of the page's own frames: which of the server's tools it wants left
+ * out of this call. It can only take away — what exists is the environment's to
+ * say — and it lands mid-call, so switching one is a fresh `session.update`
+ * rather than a redial.
+ */
+export const TOOLS_EVENT = 'session.tools';
 
 /**
  * The other frame the page keeps to itself: the turns of a conversation it is
@@ -132,14 +141,20 @@ export function createRealtimeProxy(config) {
       headers: { authorization: `Bearer ${config.apiKey}` },
     });
 
-    const tools = buildTools(config.tools);
     let pending = [];
     let memories = [];
     let history = [];
+    let off = [];
 
+    /** Built per send, not per call: the page can switch a tool mid-call. */
     const update = () => JSON.stringify({
       type: 'session.update',
-      session: sessionConfig({ voice, tools, memories, resumed: history.length > 0 }),
+      session: sessionConfig({
+        voice,
+        tools: buildTools(pickTools(config.tools, off)),
+        memories,
+        resumed: history.length > 0,
+      }),
     });
 
     /**
@@ -180,6 +195,12 @@ export function createRealtimeProxy(config) {
       try {
         incoming = JSON.parse(data.toString());
       } catch {
+        return;
+      }
+
+      if (incoming?.type === TOOLS_EVENT) {
+        off = switchedOff(config.tools, incoming.off);
+        if (upstream.readyState === WebSocket.OPEN) upstream.send(update());
         return;
       }
 
