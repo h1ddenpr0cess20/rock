@@ -1,3 +1,5 @@
+import { toolCatalog } from './tools.js';
+
 function sendJSON(res, status, body) {
   res.writeHead(status, { 'content-type': 'application/json' });
   res.end(JSON.stringify(body));
@@ -20,6 +22,8 @@ export function createApiMiddleware(config) {
           memory: config.tools.memory,
           mcp: config.tools.mcpServers.map((s) => s.server_label),
         },
+        /** What the page may switch off for its own call, and what to call it. */
+        switches: toolCatalog(config.tools),
         ready: Boolean(config.apiKey),
       });
     }

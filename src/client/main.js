@@ -6,9 +6,11 @@ import { createBoulder } from './boulder/index.js';
 import { createHistory } from './history.js';
 import { createMemory } from './memory.js';
 import { createVoiceSession } from './session/index.js';
+import { createToolSwitches } from './tools.js';
 import { createControls } from './ui/controls.js';
 import { createHistoryPanel } from './ui/history.js';
 import { createMemoryPanel } from './ui/memory.js';
+import { createToolsPanel } from './ui/tools.js';
 import { createHud } from './ui/hud.js';
 import { stripStageChrome } from './ui/stage.js';
 import { trackKeyboardInset } from './ui/viewport.js';
@@ -19,11 +21,33 @@ const { THREE } = await stage.ready;
 
 const boulder = createBoulder({ stage, THREE });
 const memory = createMemory();
-const session = createVoiceSession({ memory });
+const switches = createToolSwitches();
+const session = createVoiceSession({ memory, switches });
 const hud = createHud();
 const history = createHistory();
 const historyPanel = createHistoryPanel({ history, onNew: startFresh, onResume: pickUp });
-const memoryPanel = createMemoryPanel({ memory, onChange: () => session.syncMemory() });
+const memoryPanel = createMemoryPanel({
+  memory,
+  onChange: () => {
+    session.syncMemory();
+    paintTools();
+  },
+});
+const toolsPanel = createToolsPanel({
+  switches,
+  onChange: () => {
+    session.syncTools();
+    paintTools();
+  },
+});
+
+/** Whether the server has memory at all — the switch in the panel is local. */
+let memoryTool = false;
+
+/** The chip under the composer: what he can actually reach for, right now. */
+function paintTools() {
+  hud.showTools([...switches.labels, memoryTool && memory.enabled ? 'memory' : null]);
+}
 
 trackKeyboardInset();
 
@@ -68,6 +92,7 @@ const controls = createControls({
   },
 
   onCancel() {
+    if (toolsPanel.isOpen) return toolsPanel.close();
     if (memoryPanel.isOpen) return memoryPanel.close();
     if (historyPanel.isOpen) return historyPanel.close();
     session.cancel();
@@ -173,7 +198,9 @@ try {
   const chosen = controls.setCatalog(config);
   session.model = chosen.model;
   session.voice = chosen.voice;
-  hud.showTools(config.tools);
+  switches.setCatalog(config.switches);
+  memoryTool = Boolean(config.tools.memory);
+  paintTools();
   if (!config.ready) throw new Error('XAI_API_KEY is not set — nothing to dial with.');
 } catch (err) {
   controls.unavailable();
