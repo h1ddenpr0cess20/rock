@@ -189,9 +189,9 @@ local changes, listed at the top of the file — re-copying it drops them.
 
 ## The transport seam
 
-`session/index.js` exposes `on`, `start`, `stop`, `send`, `cancel`, `syncMemory`,
-`syncTools`, `messages`, `context`, `connected`, `busy`, `stale`, `state`, `muted`, `model`,
-`voice` — and emits:
+`session/index.js` exposes `on`, `start`, `stop`, `send`, `cancel`,
+`syncMemory`, `syncTools`, `messages`, `context`, `connected`, `busy`, `stale`,
+`state`, `muted`, `model`, `voice` — and emits:
 
 ```
 'state'        listening | thinking | speaking | idle
