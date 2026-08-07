@@ -52,7 +52,8 @@ there lands in the same entry rather than a new one.
 | `npm run lint` | ESLint |
 
 CI runs the lint, the tests on Node 22.12 and 24, and a build that then has to
-boot and serve itself over both HTTP and HTTPS.
+boot and serve itself over both HTTP and HTTPS. CodeQL scans the same source on
+every push and again weekly, since its queries change faster than this does.
 
 To run it on a phone, or in Docker, see
 [configuration](docs/configuration.md#on-a-phone).
