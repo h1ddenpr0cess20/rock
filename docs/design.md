@@ -179,7 +179,7 @@ src/
     static.js           Hosting for dist/ — production only
 docs/                   These notes, configuration, policies, screenshots
 test/                   node:test, against a stub xAI socket
-.github/workflows/      CI (lint, tests, build smoke test) and the Docker publish
+.github/workflows/      CI (lint, tests, build smoke test), CodeQL, Docker publish
 ```
 
 `src/client/boulder/` started as a single-file prototype
