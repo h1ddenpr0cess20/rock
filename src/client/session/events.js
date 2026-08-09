@@ -78,6 +78,16 @@ export function createEventHandler({
         emit('ready', { model: event.model, voice: event.voice });
         return;
 
+      case 'connectors.update':
+        emit('agents', event.agents ?? []);
+        return;
+
+      case 'task.update':
+        /** The second argument marks the catch-up a new call opens with: the
+         *  board wants it, the log already has it. */
+        if (event.task) emit('task', event.task, event.replay === true);
+        return;
+
       case 'input_audio_buffer.speech_started':
         if (playing()) emit('interrupted');
         interrupt();

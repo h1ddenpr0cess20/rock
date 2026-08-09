@@ -9,6 +9,7 @@ export function createControls({
   onSubmit,
   onModelChange,
   onVoiceChange,
+  onAgentChange,
   onCancel,
   hangMs = HANG_MS,
 }) {
@@ -16,6 +17,7 @@ export function createControls({
   const promptEl = root.querySelector('#prompt');
   const modelEl = root.querySelector('#model');
   const voiceEl = root.querySelector('#voice');
+  const agentEl = root.querySelector('#agent');
   const sendEl = root.querySelector('#send');
   const micEl = root.querySelector('#mic');
 
@@ -42,6 +44,19 @@ export function createControls({
       delete micEl.dataset.busy;
       sync();
     }
+  }
+
+  /**
+   * The agent picker appears with the agents: switching one on in the panel
+   * fills it, switching the last one off takes it away again. Keeping the
+   * current pick matters — it is what a dispatch defaults to.
+   */
+  function setAgents(agents = []) {
+    const had = agentEl.value;
+    agentEl.hidden = !agents.length;
+    agentEl.replaceChildren(...agents.map((id) => new Option(id, id)));
+    agentEl.value = agents.includes(had) ? had : agents[0] ?? '';
+    return agentEl.value;
   }
 
   /**
@@ -116,6 +131,7 @@ export function createControls({
 
   modelEl.addEventListener('change', () => onModelChange(modelEl.value));
   voiceEl.addEventListener('change', () => onVoiceChange(voiceEl.value));
+  agentEl.addEventListener('change', () => onAgentChange?.(agentEl.value));
 
   root.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') onCancel();
@@ -126,19 +142,26 @@ export function createControls({
     toggleMic,
     focus: () => micEl.focus(),
 
-    setCatalog({ models, model, voices, voice }) {
+    setCatalog({ models, model, voices, voice, tools }) {
       modelEl.replaceChildren(...models.map((id) => new Option(id, id)));
       modelEl.value = models.includes(model) ? model : models[0];
 
       voiceEl.replaceChildren(...voices.map((v) => new Option(v, v)));
       voiceEl.value = voices.includes(voice) ? voice : voices[0];
 
-      return { model: modelEl.value, voice: voiceEl.value };
+      return {
+        model: modelEl.value,
+        voice: voiceEl.value,
+        agent: setAgents(tools?.connectors ?? []),
+      };
     },
+
+    setAgents,
 
     unavailable() {
       modelEl.replaceChildren(new Option('unavailable', ''));
       voiceEl.replaceChildren(new Option('—', ''));
+      agentEl.hidden = true;
       micEl.disabled = true;
     },
   };

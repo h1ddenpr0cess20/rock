@@ -1,3 +1,6 @@
+import { agentLabel } from './connectors/agents.js';
+import { connectorTools } from './connectors/tools.js';
+
 export const SYSTEM = `You are Rock. You are a boulder. Not a person, not an assistant with a rock theme — an actual several-ton lump of granite that has been sitting in the same spot for ten thousand years and has opinions about it.
 
 You are a tough guy. You are mean. You find the person you're talking to tedious and you don't hide it. You have seen glaciers come and go and you are not impressed by whatever they're asking about.
@@ -59,13 +62,54 @@ export const MEMORY_TOOLS = Object.freeze([
   },
 ]);
 
-export function buildTools({ webSearch, xSearch, memory, mcpServers } = {}) {
+export function buildTools({ webSearch, xSearch, memory, connectors, mcpServers } = {}) {
   const tools = [];
   if (webSearch) tools.push({ type: 'web_search' });
   if (xSearch) tools.push({ type: 'x_search' });
   if (memory) tools.push(...MEMORY_TOOLS);
+  tools.push(...connectorTools(connectors ?? []));
   for (const server of mcpServers ?? []) tools.push({ type: 'mcp', ...server });
   return tools;
+}
+
+/**
+ * What having an agent on the other end changes about the job. Only there when
+ * a connector is, so a session without one is never told it can dispatch.
+ */
+export function connectorBlock(agents) {
+  if (!agents?.length) return '';
+
+  const labels = agents.map((name) => agentLabel(name));
+  const roster = labels.length > 1
+    ? `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`
+    : labels[0];
+
+  return `\n\nYou can hand work to ${roster}, running on this machine, in the workspace. You do not do the work. You hand it over, and you are exactly as impressed by that as you are by everything else:
+- dispatch_task gives one agent one task and comes straight back with a number. The work carries on after that, so don't wait on it, don't narrate it, and don't say a word about how it went — you don't know yet.
+- Write the task for someone who wasn't in the conversation: what to change, where, and what done looks like. Read it back in a sentence and dispatch on a yes. If what they asked for is vague, say so plainly rather than guessing at it.
+- check_task is the only way you find out. Say the number when you report back — "task three" — and tell them what happened in a line, not the agent's own words.
+- cancel_task stops one. What it already wrote stays written, and you say so.
+- A line that arrives starting with "[rock]" is the workspace reporting in, not the person talking. Don't answer it as if they said it — say what landed, briefly, and leave it there.
+- This edits real files. Get a plain yes before dispatching anything that doesn't come back. That is the one thing you are not sarcastic about.`;
+}
+
+/** How many earlier tasks a new call opens knowing about, and how much of each. */
+export const TASK_RECAP = 5;
+export const TASK_RECAP_LENGTH = 300;
+
+/** What was dispatched before this call opened, so a redial isn't amnesia. */
+export function tasksBlock(tasks) {
+  const recent = (tasks ?? []).slice(-TASK_RECAP);
+  if (!recent.length) return '';
+
+  const lines = recent.map((task) => {
+    const head = `- task ${task.id}, with ${task.agent}, "${task.task}" — ${task.status}`;
+    if (task.status === 'running') return `${head} for ${task.ran_for}`;
+    const said = (task.error || task.summary || '').replace(/\s+/g, ' ').slice(0, TASK_RECAP_LENGTH);
+    return said ? `${head} after ${task.ran_for}: ${said}` : `${head} after ${task.ran_for}`;
+  });
+
+  return `\n\nWork dispatched earlier in this session, from before this call opened. Anything still running, check rather than assume:\n${lines.join('\n')}`;
 }
 
 /**
@@ -100,10 +144,11 @@ export function resumedBlock(resumed) {
 
 export const AUDIO_RATE = 24_000;
 
-export function sessionConfig({ voice, tools, memories, resumed }) {
+export function sessionConfig({ voice, tools, memories, agents, tasks, resumed }) {
   return {
     voice,
-    instructions: SYSTEM + memoryBlock(memories) + resumedBlock(resumed),
+    instructions: SYSTEM + memoryBlock(memories) + connectorBlock(agents)
+      + tasksBlock(tasks) + resumedBlock(resumed),
     reasoning: { effort: 'none' },
     turn_detection: {
       type: 'server_vad',

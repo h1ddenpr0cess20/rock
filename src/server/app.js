@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 import { createApiMiddleware } from './api.js';
 import { loadConfig } from './config.js';
+import { createConnectors } from './connectors/index.js';
+import { refuseUpgrade, sameOrigin } from './origin.js';
 import { createRealtimeProxy } from './realtime.js';
 import { createStaticMiddleware } from './static.js';
 
@@ -32,14 +34,31 @@ export function chain(...middleware) {
 }
 
 export function createApp(config = loadConfig(), { root = DIST, tls = null } = {}) {
-  const handle = chain(createApiMiddleware(config), createStaticMiddleware(root));
-  const server = tls ? createSecureServer(tls, handle) : createServer(handle);
-  const realtime = createRealtimeProxy(config);
+  /** One registry, shared: the socket dispatches the work, the API reports it. */
+  const connectors = createConnectors(config);
 
+  const handle = chain(createApiMiddleware(config, connectors), createStaticMiddleware(root));
+  const server = tls ? createSecureServer(tls, handle) : createServer(handle);
+  const realtime = createRealtimeProxy(config, connectors);
+
+  server.on('close', () => {
+    realtime.close();
+    connectors.close();
+  });
+
+  /**
+   * The same-origin policy does not apply to WebSockets, so without this check
+   * any page in any other tab can open the call socket, put words in the
+   * person's mouth and get an agent spawned on their files.
+   */
   server.on('upgrade', (req, socket, head) => {
     if (req.url.split('?')[0] !== REALTIME_PATH) return socket.destroy();
+    if (!sameOrigin(req)) return refuseUpgrade(socket);
     realtime.handleUpgrade(req, socket, head);
   });
+
+  /** The panel edits these while the server runs, so the boot log reads them here. */
+  server.connectors = connectors;
 
   return server;
 }

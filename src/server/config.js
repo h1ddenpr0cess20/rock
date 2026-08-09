@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 
+import { AGENT_NAMES, AGENTS, splitArgs } from './connectors/agents.js';
+
 export const KNOWN_VOICES = Object.freeze([
   'rex', 'sal', 'atlas', 'zagan', 'orion', 'perseus', 'leo',
   'helix', 'zenith', 'rigel', 'castor', 'ursa', 'naksh', 'kepler',
@@ -37,12 +39,70 @@ function readMcpFile(path) {
   }
 }
 
+/** Where each agent's own settings come from, and what it is called there. */
+const CONNECTOR_ENV = Object.freeze({
+  openclaw: { prefix: 'OPENCLAW', mode: 'OPENCLAW_MODE', defaultMode: 'isolated' },
+});
+
+/** How long an agent may work before it is stopped, and how many may at once. */
+const DEFAULT_TIMEOUT = 900;
+const DEFAULT_LIMIT = 3;
+
+/**
+ * The agents this server may hand work to. Off unless `CONNECTORS` names one:
+ * a connector runs a CLI that edits files, so it is opt-in on the machine that
+ * would be edited, never a default.
+ */
+function loadConnectors(env) {
+  const chosen = (env.CONNECTORS ?? '')
+    .split(/[,\s]+/)
+    .map((name) => name.trim().toLowerCase())
+    .filter(Boolean);
+
+  const names = [];
+  const agents = {};
+
+  for (const name of chosen) {
+    if (!AGENT_NAMES.includes(name)) {
+      console.warn(`connectors: no agent called ${name} — known: ${AGENT_NAMES.join(', ')}`);
+      continue;
+    }
+    if (names.includes(name)) continue;
+
+    const { prefix, mode, defaultMode } = CONNECTOR_ENV[name];
+    const command = splitArgs(env[`${prefix}_COMMAND`]);
+    names.push(name);
+    agents[name] = {
+      command: command.length ? command : [AGENTS[name].command],
+      model: env[`${prefix}_MODEL`] || '',
+      mode: env[mode] ?? defaultMode,
+      extra: splitArgs(env[`${prefix}_ARGS`]),
+      cwd: env[`${prefix}_CWD`] || null,
+    };
+  }
+
+  return {
+    names,
+    runtime: {
+      agents,
+      cwd: env.CONNECTOR_CWD || process.cwd(),
+      file: env.CONNECTOR_FILE || 'connectors.json',
+      timeoutMs: (Number(env.CONNECTOR_TIMEOUT) || DEFAULT_TIMEOUT) * 1000,
+      limit: Number(env.CONNECTOR_LIMIT) || DEFAULT_LIMIT,
+      announce: flag(env.CONNECTOR_ANNOUNCE, true),
+    },
+  };
+}
+
 export function loadConfig(env = process.env) {
   const defaultVoice = env.XAI_VOICE || KNOWN_VOICES[0];
   const defaultModel = env.XAI_MODEL || KNOWN_MODELS[0];
+  const connectors = loadConnectors(env);
 
   return {
     port: Number(env.PORT) || 5173,
+    /** Empty means "decide from how it was started" — see src/server/index.js. */
+    host: env.HOST || '',
     apiKey: env.XAI_API_KEY,
     realtimeUrl: env.XAI_REALTIME_URL || 'wss://api.x.ai/v1/realtime',
     defaultModel,
@@ -57,7 +117,9 @@ export function loadConfig(env = process.env) {
       webSearch: flag(env.XAI_WEB_SEARCH, true),
       xSearch: flag(env.XAI_X_SEARCH, true),
       memory: flag(env.MEMORY, true),
+      connectors: connectors.names,
       mcpServers: loadMcpServers(env),
     },
+    connectors: connectors.runtime,
   };
 }

@@ -13,6 +13,7 @@ function socketUrl({ voice, model }) {
 export function connect({
   voice,
   model,
+  agent,
   memories = [],
   history = [],
   toolsOff = [],
@@ -39,6 +40,7 @@ export function connect({
       if (memories.length) ws.send(JSON.stringify({ type: 'session.memory', memories }));
       /** Ahead of any audio, so the proxy has it before the call is under way. */
       if (history.length) ws.send(JSON.stringify({ type: 'session.history', turns: history }));
+      if (agent) ws.send(JSON.stringify({ type: 'session.agent', agent }));
       resolve({
         get open() {
           return ws.readyState === WebSocket.OPEN;
