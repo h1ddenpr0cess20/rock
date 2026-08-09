@@ -3,7 +3,9 @@ import { defineConfig, loadEnv } from 'vite';
 
 import { createApiMiddleware } from './src/server/api.js';
 import { loadConfig } from './src/server/config.js';
+import { createConnectors } from './src/server/connectors/index.js';
 import { REALTIME_PATH } from './src/server/app.js';
+import { refuseUpgrade, sameOrigin } from './src/server/origin.js';
 import { createRealtimeProxy } from './src/server/realtime.js';
 import { CERT_DIR } from './src/server/tls.js';
 
@@ -12,11 +14,19 @@ function rockApi(env) {
   return {
     name: 'rock-api',
     configureServer(server) {
-      server.middlewares.use(createApiMiddleware(config));
+      /** One registry for both, exactly as createApp does it — dev is not a
+       *  second wiring of the same thing. */
+      const connectors = createConnectors(config);
 
-      const realtime = createRealtimeProxy(config);
+      server.middlewares.use(createApiMiddleware(config, connectors));
+
+      const realtime = createRealtimeProxy(config, connectors);
+      server.httpServer?.on('close', () => connectors.close());
       server.httpServer?.on('upgrade', (req, socket, head) => {
         if (req.url.split('?')[0] !== REALTIME_PATH) return;
+        /** Same reason as in createApp: a WebSocket is not same-origin by
+         *  default, and this one dials on our key and spawns agents. */
+        if (!sameOrigin(req)) return refuseUpgrade(socket);
         realtime.handleUpgrade(req, socket, head);
       });
 
@@ -36,7 +46,10 @@ export default defineConfig(({ mode }) => {
     plugins: [rockApi(env), ...(lan ? [basicSsl({ certDir: CERT_DIR })] : [])],
     server: {
       port: Number(env.PORT) || 5173,
-      host: true,
+      /** This machine only, for the same reason `npm start` is: a connector
+       *  edits real files and nothing here asks who you are. `dev:lan` passes
+       *  --host, which is that decision made on purpose. */
+      host: env.HOST || false,
     },
     resolve: {
       alias: { 'three/addons/': 'three/examples/jsm/' },

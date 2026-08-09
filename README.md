@@ -6,7 +6,8 @@ Grok speech-to-speech session, and its squash, stomp and sway are driven by the
 live audio, so it moves with whichever of you is talking.
 
 It can search the web and X, and call remote MCP servers. It also remembers
-what you tell it to, between calls.
+what you tell it to, between calls, and — if you switch a connector on — hands
+real work to an agent CLI running on your machine and tells you when it lands.
 
 ![Rock in a desktop browser](docs/screenshots/desktop.png)
 
@@ -30,6 +31,13 @@ leaves the answer playing, and the conversation is still there when you turn it
 back on. It also switches itself off after a minute of silence, and the call
 survives that too. Holding the mic down is the hang-up — a ring closes around it
 while you hold, and the call ends when it lands.
+
+`connectors` is where you point him at an agent. Switch **OpenClaw** on, give it
+the repo to work in, and say what you want done: he writes the task up, reads it
+back, and hands it over on a yes. It runs while the call carries on, and he says
+so when it settles. Nothing is on until you switch it on — it edits real files —
+and the panel is also where the work shows up, with a `stop` on anything still
+running. See [connectors](docs/connectors.md).
 
 `tools` has a switch for each tool he can reach for — web search, X search, and
 any MCP server the environment gave him. Switching one off takes it out of the
@@ -62,6 +70,8 @@ To run it on a phone, or in Docker, see
 
 - [**Configuration**](docs/configuration.md) — every environment variable, the
   HTTPS setup a phone needs for microphone access, Docker, and the tools.
+- [**Connectors**](docs/connectors.md) — the OpenClaw agent he can hand work to:
+  how it is run, what the panel may change, and who is allowed to ask.
 - [**Design notes**](docs/design.md) — how the call is wired, the audio path,
   what's in `localStorage`, the moods, the source layout, and the seam another
   provider would have to implement.

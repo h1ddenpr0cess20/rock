@@ -17,6 +17,8 @@
 <div id="tabs">
   <button id="toolbox-toggle" class="chip" type="button" aria-expanded="false"
           aria-controls="toolbox">tools</button>
+  <button id="connectors-toggle" class="chip" type="button" aria-expanded="false"
+          aria-controls="connectors">connectors</button>
   <button id="memory-toggle" class="chip" type="button" aria-expanded="false"
           aria-controls="memory">memory</button>
   <button id="history-toggle" class="chip" type="button" aria-expanded="false"
@@ -48,11 +50,28 @@
     <div id="options">
       <select id="model" class="chip" aria-label="Model"><option>loading…</option></select>
       <select id="voice" class="chip" aria-label="Voice"><option>voice</option></select>
+      <select id="agent" class="chip" aria-label="Which agent takes the work" hidden></select>
     </div>
   </form>
 
   <div id="tools" class="chip"></div>
 </div>
+
+<section id="connectors" hidden aria-label="Agents he can hand work to">
+  <header id="connectors-head">
+    <span class="chip">connectors</span>
+    <button id="connectors-save" class="chip" type="button" disabled>save</button>
+    <button id="connectors-close" class="chip" type="button" aria-label="Close connectors">close</button>
+  </header>
+  <div id="connectors-body">
+    <div id="connectors-setup"></div>
+    <p id="connectors-note" class="chip"></p>
+    <div id="connectors-tasks">
+      <span class="chip section">work</span>
+      <div id="connectors-list"></div>
+    </div>
+  </div>
+</section>
 
 <section id="history" hidden aria-label="Conversation history">
   <header id="history-head">
@@ -70,7 +89,7 @@
     <button id="toolbox-close" class="chip" type="button" aria-label="Close tools">close</button>
   </header>
   <ul id="toolbox-list"></ul>
-  <p id="toolbox-note" class="chip">Memory has its own switch, in the memory tab.</p>
+  <p id="toolbox-note" class="chip">Memory and the connectors have switches of their own, in their own tabs.</p>
 </section>
 
 <section id="memory" hidden aria-label="What he remembers">

@@ -52,13 +52,14 @@ function micUnavailable() {
     : 'this browser won’t hand over a microphone — try opening the page in Safari or Chrome';
 }
 
-export function createVoiceSession({ model, voice, memory, switches } = {}) {
+export function createVoiceSession({ model, voice, agent, memory, switches } = {}) {
   const { on, emit } = createEmitter();
   const messages = [];
   const tools = memory ? createTools({ memory }) : {};
 
   let currentModel = model;
   let currentVoice = voice;
+  let currentAgent = agent;
 
   let call = null;
   let audio = null;
@@ -92,12 +93,17 @@ export function createVoiceSession({ model, voice, memory, switches } = {}) {
    * Answers a function call the model made. The result has to go back as a
    * `function_call_output` item followed by a fresh `response.create` — without
    * the second frame the model waits forever on its own tool.
+   *
+   * A name we don't run is not ours to answer: the connectors are handled by
+   * the proxy, and all this does for one of those is put a label up.
    */
   function runTool({ call_id: callId, name, args }) {
+    const label = toolLabel(name);
+    if (label) emit('tool', label);
+
     const tool = tools[name];
     if (!tool) return;
 
-    emit('tool', toolLabel(name));
     let output;
     try {
       output = tool(args);
@@ -156,6 +162,7 @@ export function createVoiceSession({ model, voice, memory, switches } = {}) {
       call = await connect({
         voice: currentVoice,
         model: currentModel,
+        agent: currentAgent,
         memories: memory?.lines() ?? [],
         toolsOff: switches?.off ?? [],
         history: prior(context),
@@ -283,6 +290,14 @@ export function createVoiceSession({ model, voice, memory, switches } = {}) {
     set voice(next) {
       currentVoice = next;
       picked++;
+    },
+    /** Which agent gets the work. Unlike voice and model, it lands mid-call. */
+    get agent() {
+      return currentAgent;
+    },
+    set agent(next) {
+      currentAgent = next;
+      if (next && call?.open) call.send({ type: 'session.agent', agent: next });
     },
     get stale() {
       return !!call && picked !== dialledPick;

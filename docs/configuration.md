@@ -12,7 +12,9 @@ Both `npm run dev` and `npm start` read `.env`.
 | `XAI_X_SEARCH` | `true` | |
 | `MEMORY` | `true` | The `remember` and `forget` tools, and the memory block in the prompt |
 | `XAI_MCP_SERVERS` | — | JSON array of remote MCP servers, or put it in `mcp.json` |
+| `CONNECTORS` | — | Agents Rock may hand work to: `openclaw`. Off unless named. See [connectors](connectors.md). |
 | `PORT` | `5173` | |
+| `HOST` | `127.0.0.1` | Which interface to bind. This machine only unless you say otherwise, or `npm start` is serving TLS. |
 | `SSL_KEY`, `SSL_CERT` | — | Paths to a real certificate; `npm start` then serves HTTPS |
 
 ## On a phone
@@ -75,6 +77,11 @@ Credentials there never leave the Node process — `/api/config` reports tool
 labels only. `remember` and `forget` are the two tools that run in the page
 rather than at xAI.
 
+`dispatch_task`, `check_task` and `cancel_task` are the three that run here, in
+the proxy, and they only exist once a connector is switched on. That is an agent
+CLI on this machine, editing real files, so it has a panel and a page of its own
+— see [connectors](connectors.md).
+
 ### Switching one off for a call
 
 `tools` opens a switch for each tool this server offers — web search, X search,
@@ -82,6 +89,10 @@ and one per MCP server. Switching one off takes it out of the call that is up
 right now: the proxy re-declares the tools with `session.update`, so there is no
 redial and nothing to reconnect. The switches live in `localStorage`, so they
 hold across calls and reloads in that browser.
+
+The connectors are not in that panel. An agent that edits files on this machine
+is switched on against the server, for everyone it serves, rather than per
+browser — so it lives in the `connectors` tab instead.
 
 The page can only take away. What exists is the environment's to say, and a tool
 `XAI_WEB_SEARCH=false` never enabled has no switch to find — a browser asking

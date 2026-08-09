@@ -1,7 +1,8 @@
 # Design notes
 
 How Rock is put together. The [README](../README.md) covers running it;
-[configuration](configuration.md) covers the knobs.
+[configuration](configuration.md) covers the knobs, and
+[connectors](connectors.md) the agent he hands work to.
 
 ## How the call is wired
 
@@ -33,7 +34,16 @@ stored; the proxy folds those lines into the instructions and re-sends its own
 browser. `session.tools` names the tools the page has switched off, and the
 proxy re-declares the session without them — a subtraction only, checked against
 the tools this server actually has, so a page can narrow what the model may
-reach for and can never widen it.
+reach for and can never widen it. The connectors are not switched that way: an
+agent that edits files on this machine belongs to the server rather than to one
+browser, so it is switched over `/api/connectors` and every live call is told.
+
+Two more frames go the other way, from the proxy down to the page: `task.update`
+when a handed-over task changes state, and `connectors.update` when the setup
+does. With a connector on, the proxy also reads the events it is passing
+through, so it can answer `dispatch_task`, `check_task` and `cancel_task`
+itself — the page never learns what command ran, and the model never sees more
+than a status and the summary the agent printed.
 
 ## Audio
 
@@ -143,6 +153,7 @@ src/
     history.js          Past conversations in localStorage, and picking one up
     memory.js           What he remembers between calls, in localStorage
     tools.js            Which of the server's tools this browser switched off
+    tasks.js            What the agent is working on, mirrored in the page
     boulder/            Geometry and animation. Knows nothing about transports
       index.js            The controller and the per-frame loop
       geometry.js         Noise, cutting planes, vertex colours
@@ -163,6 +174,7 @@ src/
       history.js          The log panel behind `log`, and its `continue`
       memory.js           The memory panel behind the `memory` button
       tools.js            The tool switches behind the `tools` button
+      connectors.js       Agent setup and the work, behind the `connectors` button
       controls.js         Mic (tap mutes, hold hangs up), field, send, pickers
       viewport.js         Keeps the composer above the on-screen keyboard
       stage.js            Strips the starter component's own chrome
@@ -171,13 +183,20 @@ src/
   server/
     index.js            Entry point
     app.js              Middleware chain + the upgrade handler
-    api.js              /api/config
+    api.js              /api/config, /api/connectors, /api/tasks
+    origin.js           Whether a request came from the page this server serves
     realtime.js         The socket proxy, and the allowlist
     tools.js            What the page may switch off, and what that leaves
     persona.js          Who Rock is, and the session config
     config.js           The environment, resolved once
+    connectors/         The agents, and the work handed to them
+      index.js            The registry: settings, tools, tasks
+      agents.js           One command line and one parser per CLI
+      settings.js         What the panel may change, validated and saved
+      tasks.js            Spawn, watch, time out, kill
+      tools.js            The three function tools the proxy answers itself
     static.js           Hosting for dist/ — production only
-docs/                   These notes, configuration, policies, screenshots
+docs/                   These notes, configuration, connectors, policies, screenshots
 test/                   node:test, against a stub xAI socket
 .github/workflows/      CI (lint, tests, build smoke test), CodeQL, Docker publish
 ```
@@ -191,7 +210,7 @@ local changes, listed at the top of the file — re-copying it drops them.
 
 `session/index.js` exposes `on`, `start`, `stop`, `send`, `cancel`,
 `syncMemory`, `syncTools`, `messages`, `context`, `connected`, `busy`, `stale`,
-`state`, `muted`, `model`, `voice` — and emits:
+`state`, `muted`, `model`, `voice`, `agent` — and emits:
 
 ```
 'state'        listening | thinking | speaking | idle
@@ -205,6 +224,8 @@ local changes, listed at the top of the file — re-copying it drops them.
 'busy'         whether a response is in flight
 'ready'        { model, voice } the proxy actually used
 'memory'       the result of a remember/forget the model just called
+'task'         a handed-over task changed state — the second argument marks a replay
+'agents'       the connector setup changed — which agents are on now
 'done'         { usage }
 'error'        { message }
 ```
