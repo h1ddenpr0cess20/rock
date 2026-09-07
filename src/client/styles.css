@@ -277,15 +277,13 @@ three-d-stage {
 }
 #tools.visible { opacity: 1; }
 
-#tabs {
+#menu {
   position: fixed;
   top: calc(env(safe-area-inset-top) + 10px);
   right: calc(env(safe-area-inset-right) + var(--gutter));
   z-index: 7;
-  display: flex;
-  gap: 8px;
 }
-#tabs button {
+#menu-toggle {
   appearance: none;
   cursor: pointer;
   padding: 10px 13px;
@@ -295,7 +293,35 @@ three-d-stage {
   color: rgba(232, 223, 210, .62);
   transition: border-color .2s;
 }
-#tabs button:hover { color: rgba(232, 223, 210, .9); border-color: rgba(232, 223, 210, .28); }
+#menu-toggle:hover { color: rgba(232, 223, 210, .9); border-color: rgba(232, 223, 210, .28); }
+
+/* The list the button drops: one panel per row, and nothing else. */
+#menu-items {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 148px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border-radius: 8px;
+  background: rgba(12, 11, 10, .96);
+  border: 1px solid rgba(232, 223, 210, .14);
+}
+#menu-items[hidden] { display: none; }
+#menu-items button {
+  appearance: none;
+  cursor: pointer;
+  padding: 11px 12px;
+  border-radius: 4px;
+  background: none;
+  border: 0;
+  color: rgba(232, 223, 210, .62);
+  text-align: left;
+  white-space: nowrap;
+  transition: color .2s, background-color .2s;
+}
+#menu-items button:hover { color: rgba(232, 223, 210, .9); background: rgba(232, 223, 210, .07); }
 
 #history,
 #memory,
@@ -682,7 +708,9 @@ three-d-stage {
 }
 #connectors-save:not(:disabled) { color: var(--listening); }
 
-#connectors-toggle.live { color: var(--listening); border-color: rgba(127, 178, 201, .4); }
+/* Work still running, said on the row and on the closed menu alike. */
+#connectors-toggle.live { color: var(--listening); }
+#menu-toggle.live { color: var(--listening); border-color: rgba(127, 178, 201, .4); }
 #connectors-head .meta { color: rgba(232, 223, 210, .22); }
 
 #connectors .task { padding: 14px 0; }
@@ -787,7 +815,7 @@ three-d-stage {
 
 @media (pointer: coarse) {
   #mic, #send { width: 44px; height: 44px; }
-  #tabs button { padding: 13px 15px; }
+  #menu-toggle, #menu-items button { padding: 13px 15px; }
   #history-head button,
   #memory-head button,
   #connectors-head button,
@@ -796,9 +824,10 @@ three-d-stage {
   #connectors .switch,
   #connectors .task button,
   .tool-item .switch { padding: 12px 14px; }
-  #tabs button:hover {
+  #menu-toggle:hover, #menu-items button:hover {
     color: rgba(232, 223, 210, .62);
     border-color: rgba(232, 223, 210, .14);
+    background: none;
   }
   #mic:hover { background: rgba(232, 223, 210, .09); color: rgba(232, 223, 210, .7); }
   #mic[aria-pressed="true"]:hover, #mic.muted:hover { background: var(--ink); color: var(--void); }
@@ -806,7 +835,8 @@ three-d-stage {
 
 @media (prefers-reduced-motion: reduce) {
   #you, #caption, #status, #tool, #tools, #composer, #mic, #send, #model, #voice, #agent,
-  #tabs button, #history-head button, #memory-head button, #connectors-head button,
+  #menu-toggle, #menu-items button,
+  #history-head button, #memory-head button, #connectors-head button,
   #toolbox-head button, #memory-add button, #connectors .switch, .tool-item .switch {
     transition-duration: .01ms;
   }

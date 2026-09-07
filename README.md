@@ -32,6 +32,10 @@ back on. It also switches itself off after a minute of silence, and the call
 survives that too. Holding the mic down is the hang-up — a ring closes around it
 while you hold, and the call ends when it lands.
 
+`menu`, in the top corner, is where the panels live: `tools`, `connectors`,
+`memory` and the log, one row each. Picking a row closes the menu behind it,
+and work still running says so on the button while the menu is shut.
+
 `connectors` is where you point him at an agent. Switch **OpenClaw** on, give it
 the repo to work in, and say what you want done: he writes the task up, reads it
 back, and hands it over on a yes. It runs while the call carries on, and he says
