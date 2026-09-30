@@ -178,9 +178,8 @@ src/
       connectors.js       Agent setup and the work, behind `connectors` in the menu
       controls.js         Mic (tap mutes, hold hangs up), field, send, pickers
       viewport.js         Keeps the composer above the on-screen keyboard
-      stage.js            Strips the starter component's own chrome
     vendor/
-      three-d-stage.js    Starter component (renderer, lighting, camera, controls)
+      gfx/                The 3D engine: <three-d-stage>, WebGPU, else WebGL 2
   server/
     index.js            Entry point
     app.js              Middleware chain + the upgrade handler
@@ -204,8 +203,14 @@ test/                   node:test, against a stub xAI socket
 
 `src/client/boulder/` started as a single-file prototype
 (`boulder-buddy.html`), still in the first commit.
-`src/client/vendor/three-d-stage.js` is a copied starter component with two
-local changes, listed at the top of the file — re-copying it drops them.
+`src/client/vendor/gfx/` is the 3D engine, written for these characters rather
+than pulled in: `<three-d-stage>` (studio lighting, ground shadow, orbit
+controls, framing, resize), the scene API the rig is built from — handed over as
+`GFX` — and the same shading in WGSL for WebGPU and GLSL for WebGL 2. WebGPU is
+tried first, WebGL 2 takes over where it is missing or its device is lost, and
+`?renderer=webgl` pins the fallback. The scene was first written against
+three.js r186, and the engine follows its maths closely enough to draw the same
+picture; `vendor/gfx/LICENSE` says which parts are ported.
 
 ## The transport seam
 

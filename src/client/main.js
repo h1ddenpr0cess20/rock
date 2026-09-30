@@ -1,5 +1,5 @@
 import './styles.css';
-import './vendor/three-d-stage.js';
+import './vendor/gfx/stage.js';
 
 import { fetchConfig } from './api.js';
 import { createBoulder } from './boulder/index.js';
@@ -15,14 +15,13 @@ import { createMemoryPanel } from './ui/memory.js';
 import { createMenu } from './ui/menu.js';
 import { createToolsPanel } from './ui/tools.js';
 import { createHud } from './ui/hud.js';
-import { stripStageChrome } from './ui/stage.js';
 import { trackKeyboardInset } from './ui/viewport.js';
 
-const stage = stripStageChrome(document.querySelector('three-d-stage'));
+const stage = document.querySelector('three-d-stage');
 
-const { THREE } = await stage.ready;
+const { GFX } = await stage.ready;
 
-const boulder = createBoulder({ stage, THREE });
+const boulder = createBoulder({ stage, GFX });
 const memory = createMemory();
 const switches = createToolSwitches();
 const session = createVoiceSession({ memory, switches });
