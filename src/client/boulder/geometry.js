@@ -14,31 +14,31 @@ const noise = (x, y, z) => {
     w) * 2 - 1;
 };
 
-function cuttingPlanes(THREE) {
+function cuttingPlanes(GFX) {
   const planes = [];
   for (let i = 0; i < 13; i++) {
     const a = i * 2.399963;
     const y = 1 - 2 * (i + 0.5) / 13;
     const r = Math.sqrt(Math.max(0, 1 - y * y));
     planes.push({
-      n: new THREE.Vector3(Math.cos(a) * r, y * 0.75, Math.sin(a) * r).normalize(),
+      n: new GFX.Vector3(Math.cos(a) * r, y * 0.75, Math.sin(a) * r).normalize(),
       d: 0.74 + hash(i, i * 3, 7) * 0.2,
     });
   }
   return planes;
 }
 
-export function createRock(THREE) {
-  const geometry = new THREE.IcosahedronGeometry(1, 6).toNonIndexed();
-  const planes = cuttingPlanes(THREE);
+export function createRock(GFX) {
+  const geometry = new GFX.IcosahedronGeometry(1, 6).toNonIndexed();
+  const planes = cuttingPlanes(GFX);
 
   const p = geometry.attributes.position.array;
-  const v = new THREE.Vector3();
+  const v = new GFX.Vector3();
   const colors = new Float32Array(p.length);
-  const base = new THREE.Color('#8a8278');
-  const dark = new THREE.Color('#453f39');
-  const pale = new THREE.Color('#b8b0a2');
-  const tc = new THREE.Color();
+  const base = new GFX.Color('#8a8278');
+  const dark = new GFX.Color('#453f39');
+  const pale = new GFX.Color('#b8b0a2');
+  const tc = new GFX.Color();
 
   for (let i = 0; i < p.length; i += 3) {
     v.set(p[i], p[i + 1], p[i + 2]).normalize();
@@ -64,10 +64,10 @@ export function createRock(THREE) {
     colors[i] = tc.r; colors[i + 1] = tc.g; colors[i + 2] = tc.b;
   }
 
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute('color', new GFX.BufferAttribute(colors, 3));
   geometry.computeVertexNormals();
 
-  const material = new THREE.MeshStandardMaterial({
+  const material = new GFX.MeshStandardMaterial({
     name: 'granite',
     vertexColors: true,
     roughness: 0.92,
@@ -75,7 +75,7 @@ export function createRock(THREE) {
     flatShading: true,
   });
 
-  const mesh = new THREE.Mesh(geometry, material);
+  const mesh = new GFX.Mesh(geometry, material);
   mesh.name = 'rock_body';
 
   return { mesh, geometry, material };

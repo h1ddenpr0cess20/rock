@@ -14,17 +14,17 @@ const HALF = 1.1;
 const TRAVEL_MIN = 0.85;
 const TRAVEL_MAX = 1.45;
 
-export function createBoulder({ stage, THREE }) {
-  buildEnvironment({ stage, THREE });
+export function createBoulder({ stage, GFX }) {
+  buildEnvironment({ stage, GFX });
 
-  const boulder = new THREE.Group();
+  const boulder = new GFX.Group();
   boulder.name = 'boulder_character';
 
-  const body = new THREE.Group();
+  const body = new GFX.Group();
   body.name = 'body';
   boulder.add(body);
 
-  const rock = createRock(THREE);
+  const rock = createRock(GFX);
   body.add(rock.mesh);
 
   let state = 'idle';
@@ -38,7 +38,7 @@ export function createBoulder({ stage, THREE }) {
 
   let rage = 0;
 
-  const clock = new THREE.Clock();
+  const clock = new GFX.Clock();
   let t = 0;
 
   const sq = { p: 0, v: 0 };
