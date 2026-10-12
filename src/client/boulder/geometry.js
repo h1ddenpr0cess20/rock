@@ -28,8 +28,15 @@ function cuttingPlanes(GFX) {
   return planes;
 }
 
-export function createRock(GFX) {
-  const geometry = new GFX.IcosahedronGeometry(1, 6).toNonIndexed();
+/**
+ * How finely the stone is sampled. It was 6; the shape is the same
+ * function of direction whatever this is, so a finer sampling is the same
+ * boulder with crisper faces and finer grain.
+ */
+export const DETAIL = 22;
+
+export function createRock(GFX, { detail = DETAIL } = {}) {
+  const geometry = new GFX.IcosahedronGeometry(1, detail).toNonIndexed();
   const planes = cuttingPlanes(GFX);
 
   const p = geometry.attributes.position.array;
@@ -59,8 +66,12 @@ export function createRock(GFX) {
     p[i] = v.x; p[i + 1] = v.y * 0.94; p[i + 2] = v.z;
 
     const m = noise(v.x * 6, v.y * 6, v.z * 6) * 0.5 + 0.5;
-    const grit = hash(Math.round(v.x * 90), Math.round(v.y * 90), Math.round(v.z * 90));
-    tc.copy(base).lerp(dark, Math.pow(m, 1.6) * 0.75).lerp(pale, grit > 0.93 ? 0.6 : 0);
+    // Granite's grain, fine now there are faces enough to show it: pale feldspar and dark mica in small round specks.
+    const fleck = noise(v.x * 34 + 3, v.y * 34, v.z * 34 - 7);
+    const mica = noise(v.x * 41 - 5, v.y * 41 + 9, v.z * 41);
+    tc.copy(base).lerp(dark, Math.pow(m, 1.6) * 0.75);
+    if (fleck > 0.5) tc.lerp(pale, Math.min(0.6, (fleck - 0.5) * 3));
+    if (mica < -0.55) tc.lerp(dark, Math.min(0.7, (-0.55 - mica) * 3));
     colors[i] = tc.r; colors[i + 1] = tc.g; colors[i + 2] = tc.b;
   }
 
